@@ -1,325 +1,260 @@
-# Bilayer MoS2 Fig.1 style bands with annotations
-# Requirements: numpy, matplotlib
+# =============================================================================
+# FIGURE 1  of  Zubair, Tahir, Vasilopoulos & Sabeeh,
+# "Quantum magnetotransport in bilayer MoS2: Influence of perpendicular
+#  electric field", Phys. Rev. B 96, 045405 (2017).
+#
+# Paper's Fig. 1 caption, verbatim:
+#   "Band structure of bilayer MoS2 for lambda = 0.074 eV and gamma = 0.047
+#    eV. The upper panels are for zero electric field energy (V = 0) and the
+#    lower ones for V = 15 meV. The left (right) panels are for the K (K')
+#    valley and Omega^s = s*lambda*V/[lambda^2 + gamma^2]^{1/2}."
+#
+# EQUATIONS USED  (all implemented in paper_equations.py, none invented here):
+#   Eq. (3)  p.2 - the fourth-degree equation whose roots are epsilon
+#   Eq. (2)  p.2 - E = hbar*v_F*epsilon, converts those roots into eV
+#   Eq. (1)  p.1 - the Hamiltonian Eq. (3) is derived from (used as a check)
+#
+# HOW THE FIGURE IS BUILT
+#   for each of 401 points k on the horizontal axis:
+#       solve Eq. (3)          -> 4 roots epsilon
+#       apply Eq. (2)          -> 4 energies in eV
+#   repeat for s = +1 and s = -1 (spin up / down)   -> 8 curves per panel
+#   repeat for (tau, V) = (+1,0), (-1,0), (+1,15meV), (-1,15meV) -> 4 panels
+#
+# LAYOUT
+#   Axis limits, tick values and panel proportions below were measured
+#   directly off the published figure (300 dpi render of PDF page 2):
+#     frame 581 x 722 px, split into two EQUAL 361 px sub-panels
+#     V=0     : conduction 0.7997..0.9080 , valence -1.0219..-0.5947
+#     V=15meV : conduction 0.7877..0.9080 , valence -1.0005..-0.6483
+#     x-axis  : -0.1 .. 0.1 in both
+# =============================================================================
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 
-# ---------- Parameters from caption / text ----------
-hbar = 6.582119569e-16  # eV·s
-a = 3.16e-10            # m (lattice constant, editable)
-vF = 0.53e6             # m/s
-Delta = 0.83            # eV (since 2Δ = 1.66 eV)
-lam = 0.074             # eV (λ)
-gamma = 0.047           # eV (γ)
-Mz = 0.0                # eV (set 0 for this figure)
-Mv = 0.0                # eV (set 0 for this figure)
+import paper_equations as pe
 
-# Dimensionless momentum grid q = ka/π
-q = np.linspace(-0.1, 0.1, 401)
-k = (np.pi / a) * q
-i0 = np.argmin(np.abs(q))
+P = pe.P
 
+# --- typography: the paper is set in Times; STIX is its metric-compatible
+# --- open counterpart, and matches for both text and mathematics.
+plt.rcParams["font.family"] = "STIXGeneral"
+plt.rcParams["mathtext.fontset"] = "stix"
+plt.rcParams["axes.linewidth"] = 1.2
 
-def xi_terms(tau, s, V):
-    """xi_i^{s,tau} as in the paper (eV). tau=+1 (K), -1 (K'); s=+1 (up), -1 (down)."""
-    kappa = Delta + V
-    alpha = Delta - V
-    xi1 = kappa + tau * s * lam + s * Mz - tau * Mv
-    xi2 = alpha - s * Mz + tau * Mv
-    xi3 = alpha - tau * s * lam - s * Mz + tau * Mv
-    xi4 = kappa + s * Mz - tau * Mv
-    return xi1, xi2, xi3, xi4
+# Dimensionless abscissa of the paper, q = ka/pi, and the wave vector it
+# corresponds to.  Eq. (3) is solved at each of these k.
+Q = np.linspace(-0.1, 0.1, 401)
+K = (np.pi / P.A_LATTICE) * Q
+I0 = np.argmin(np.abs(Q))
 
+# Sign convention for Eq. (3).  "eq1" reproduces the published Fig. 1;
+# "eq3" is Eq. (3) exactly as printed.  See discrepancy (D1) in
+# paper_equations.py - the two differ only by exchanging the spin labels.
+SIGN = "eq1"
 
-def H_matrix(kx, tau, s, V):
-    """4x4 low-energy Hamiltonian along the ky cut (pi_+/pi_- -> real vF*hbar*|k|,
-    which is unitarily equivalent to the paper's purely-imaginary off-diagonal
-    entries and gives identical eigenvalues)."""
-    xi1, xi2, xi3, xi4 = xi_terms(tau, s, V)
-    t = vF * hbar * abs(kx)
-    return np.array([
-        [-xi1, t, gamma, 0.0],
-        [t, xi2, 0.0, 0.0],
-        [gamma, 0.0, -xi3, t],
-        [0.0, 0.0, t, xi4]
-    ], dtype=float)
+# Band index -> colour, following the paper's mu labelling.
+#   mu = (--) lowest valence  = black      mu = (-+) upper valence = red
+#   mu = (+-) lower conduction = red       mu = (++) upper conduction = black
+# Both spins of a given band share a colour; spin is shown by line style.
+BAND_COLOR = {0: "black", 1: "red", 2: "red", 3: "black"}
+BAND_MU = {0: "--", 1: "-+", 2: "+-", 3: "++"}
 
-
-def bands_with_layer(tau, s, V):
-    """
-    Eigen-energies at each kx, plus a 'layer colour' per band: the conduction
-    pair mixes basis rows (1,3)=(xi2,xi4) and the valence pair mixes basis
-    rows (0,2)=(xi1,xi3). Tagging each eigenstate 'black'/'red' by whichever
-    of those two basis rows dominates its eigenvector reproduces the paper's
-    two-colour scheme (black=E_{++}/E_{--}, red=E_{+-}/E_{-+}) in Fig. 1
-    without needing to hand-track the mu quantum numbers.
-    """
-    E = np.zeros((len(k), 4))
-    color = np.empty((len(k), 4), dtype=object)
-    for i, kx in enumerate(k):
-        w, v = np.linalg.eigh(H_matrix(kx, tau, s, V))
-        order = np.argsort(w)
-        E[i] = w[order]
-        for j, idx in enumerate(order):
-            vec = v[:, idx]
-            if j < 2:  # valence pair -> mixing of rows 0 (xi1) and 2 (xi3)
-                color[i, j] = 'black' if abs(vec[0]) >= abs(vec[2]) else 'red'
-            else:      # conduction pair -> mixing of rows 1 (xi2) and 3 (xi4)
-                color[i, j] = 'red' if abs(vec[1]) >= abs(vec[3]) else 'black'
-    return E, color
+# Measured axis limits, see header.
+YLIM = {
+    0.0:   {"cond": (0.7997, 0.9080), "val": (-1.0219, -0.5947)},
+    0.015: {"cond": (0.7877, 0.9080), "val": (-1.0005, -0.6483)},
+}
 
 
 def bands(tau, V):
-    """Eigen-energies for s=up,down at each kx; returns (Eup, Edn, cUp, cDn)."""
-    Eup, cUp = bands_with_layer(tau, +1, V)
-    Edn, cDn = bands_with_layer(tau, -1, V)
-    return Eup, Edn, cUp, cDn
+    """Energies of all four bands over the whole k range, both spins.
+
+    Eq. (3) -> Eq. (2), evaluated at every k.  Returns two arrays of shape
+    (len(K), 4), ascending in energy: columns 0,1 = valence, 2,3 = conduction.
+    """
+    up = np.empty((len(K), 4))
+    dn = np.empty((len(K), 4))
+    for i, k in enumerate(K):
+        up[i] = pe.eq2_eq3_band_energies(k, +1, tau, V, sign_convention=SIGN)
+        dn[i] = pe.eq2_eq3_band_energies(k, -1, tau, V, sign_convention=SIGN)
+    return up, dn
 
 
-def band_color(color_col):
-    """Majority-vote colour for one band across all k (robust to the
-    ambiguous colour flip exactly at an accidental degeneracy)."""
-    black_votes = np.sum(color_col == 'black')
-    return 'black' if black_votes >= len(color_col) / 2 else 'red'
+def legend_entry(ax, x, y, style, color, text, fontsize=8.5):
+    """One legend row: a short colour-coded line sample, then black text.
+
+    x, y are axes fractions.  The paper draws its legends this way - the
+    sample carries the colour and the line style, the label itself is
+    always black.
+    """
+    kw = {"dashes": (1, 1.4)} if style == ":" else {}
+    ax.plot([x, x + 0.105], [y, y], transform=ax.transAxes, color=color,
+            linestyle=style, lw=1.3, clip_on=False, **kw)
+    ax.text(x + 0.135, y, text, transform=ax.transAxes, color="black",
+            fontsize=fontsize, va="center", ha="left")
 
 
-def cross_arrow(ax_top, ax_bot, y_top, y_bot, label, color, x_pos=0.0, xm=0.94,
-                 y_offset=0.0, ha='right', label_ax=None, label_y=None):
-    """Double-headed arrow that visually crosses the broken axis, connecting
-    a point in the conduction sub-axis to a point in the valence sub-axis.
-    x_pos (data coords) offsets the arrow itself sideways -- pass y_top/
-    y_bot already evaluated AT that same x_pos (not at k=0), otherwise the
-    arrow tip won't actually touch the curve it's meant to connect to.
-    xm (axes fraction) + ha position the label horizontally; label_ax picks
-    which of ax_top/ax_bot the label is drawn on (default ax_top); label_y
-    (data coords, in label_ax's own y-scale) sets its height directly --
-    if omitted, defaults to y_top + y_offset on ax_top."""
-    con = ConnectionPatch(xyA=(x_pos, y_top), coordsA=ax_top.transData,
-                           xyB=(x_pos, y_bot), coordsB=ax_bot.transData,
-                           arrowstyle='<->', color=color, lw=1.3,
-                           mutation_scale=12)
-    ax_top.figure.add_artist(con)
-    if label_ax is None:
-        label_ax = ax_top
-    if label_y is None:
-        label_y = y_top + y_offset
-    label_ax.annotate(label, xy=(xm, label_y), xycoords=label_ax.get_yaxis_transform(),
-                       xytext=(xm, label_y), textcoords=label_ax.get_yaxis_transform(),
-                       color=color, fontsize=7.5, ha=ha, va='bottom', clip_on=False)
+def mu_label(mu, spin, tau):
+    """The paper's curve labels, e.g. E^{up,+}_{++}."""
+    arrow = r"\uparrow" if spin > 0 else r"\downarrow"
+    valley = "+" if tau > 0 else "-"
+    return fr"$\mathrm{{E}}^{{{arrow},{valley}}}_{{{mu}}}$"
 
 
-def draw_panel(fig, outer_gs, block_row, col, tau, V):
-    """Draw one (valley, V) panel as a broken-axis pair: ax_top = conduction,
-    ax_bot = valence, touching with zero gap (hspace=0) so their shared
-    spine reads as a single bold divider line, matching the paper's Fig. 1."""
-    inner = outer_gs[block_row, col].subgridspec(2, 1, height_ratios=[1, 1.3], hspace=0.0)
-    ax_top = fig.add_subplot(inner[0])
-    ax_bot = fig.add_subplot(inner[1], sharex=ax_top)
+def draw_panel(fig, gs_cell, tau, V):
+    """One (valley, V) panel: conduction above, valence below, sharing a
+    single bold divider (hspace = 0), exactly as in the published figure."""
+    inner = gs_cell.subgridspec(2, 1, height_ratios=[1, 1], hspace=0.0)
+    ax_c = fig.add_subplot(inner[0])
+    ax_v = fig.add_subplot(inner[1], sharex=ax_c)
 
-    Eup, Edn, cUp, cDn = bands(tau, V)
+    up, dn = bands(tau, V)
 
     for b in range(4):
-        colU = band_color(cUp[:, b])
-        colD = band_color(cDn[:, b])
-        if V != 0.0 and tau == -1 and b == 0:
-            # K' valence, lowest band (mu=--) at V!=0: force fully black
-            # (per explicit visual request), rather than the eigenvector-
-            # heuristic colors (which flip red/black between spin channels
-            # here and would otherwise mismatch solid vs dotted).
-            colU = colD = 'black'
-        if V != 0.0 and tau == -1 and b == 1:
-            # K' valence, upper band (mu=-+) at V!=0: force fully red for
-            # the same reason (heuristic gave black solid / red dotted --
-            # a mismatch within the same mu-group).
-            colU = colD = 'red'
-        if V == 0.0 and tau == -1 and b == 0:
-            # K' valence at V=0: heuristic swaps red/black relative to the
-            # K panel (b=0 comes out red, b=1 black) -- force it to match
-            # K's convention (b=0 = mu=-- = black, b=1 = mu=-+ = red).
-            colU = colD = 'black'
-        if V == 0.0 and tau == -1 and b == 1:
-            colU = colD = 'red'
-        if V == 0.0 and tau == -1 and b == 2:
-            # K' conduction at V=0: heuristic also swaps red/black here
-            # (b=2 comes out black, b=3 red) relative to the fixed "++"/"+-"
-            # legend colours (black=outer/"++", red=inner/"+-") -- force it
-            # to match: b=2 (inner, mu=+-) = red, b=3 (outer, mu=++) = black.
-            colU = colD = 'red'
-        if V == 0.0 and tau == -1 and b == 3:
-            colU = colD = 'black'
-        ax = ax_top if b >= 2 else ax_bot
-        ax.plot(q, Eup[:, b], color=colU, lw=1.6)              # solid = spin up
-        # At V=0 the two spins are numerically identical (exact degeneracy),
-        # so overlaying a dotted spin-down line on top of the solid spin-up
-        # line only adds a speckled rendering artefact -- skip it and let
-        # the single solid curve represent both, matching the paper's plot
-        # (the legend still lists both up/down entries).
+        ax = ax_c if b >= 2 else ax_v
+        color = BAND_COLOR[b]
+        ax.plot(Q, up[:, b], color=color, lw=1.25)
+        # At V = 0 the two spins are exactly degenerate, so the dotted
+        # spin-down curve would sit precisely on top of the solid spin-up
+        # one and only produce a speckled artefact.  The paper shows a
+        # single curve there too, while still listing both in the legend.
         if V != 0.0:
-            ax.plot(q, Edn[:, b], color=colD, lw=1.2, ls=':')   # dotted = spin down
+            ax.plot(Q, dn[:, b], color=color, lw=1.15, linestyle=":",
+                    dashes=(1, 1.4))
 
-    # y-limits based on the actual data, with a little margin (paper-like ranges)
-    cond_lo, cond_hi = min(Eup[:, 2].min(), Edn[:, 2].min()), max(Eup[:, 3].max(), Edn[:, 3].max())
-    val_lo, val_hi = min(Eup[:, 0].min(), Edn[:, 0].min()), max(Eup[:, 1].max(), Edn[:, 1].max())
-    ax_top.set_ylim(cond_lo - 0.01, cond_hi + 0.015)
-    ax_bot.set_ylim(val_lo - 0.02, val_hi + 0.02)
+    lim = YLIM[V]
+    ax_c.set_ylim(*lim["cond"])
+    ax_v.set_ylim(*lim["val"])
+    ax_c.set_xlim(-0.1, 0.1)
 
-    ax_top.set_xlim(-0.1, 0.1)
-    ax_bot.set_xlabel(r"$ka/\pi$")
-    ax_top.set_ylabel("Energy (eV)")
-    ax_bot.set_ylabel("Energy (eV)")
+    ax_c.set_yticks([0.83, 0.86, 0.89])
+    ax_c.set_yticklabels(["0.83", "0.86", "0.89"])
+    ax_v.set_yticks([-1.0, -0.9, -0.8])
+    ax_v.set_yticklabels([r"$-1$", r"$-0.9$", r"$-0.8$"])
+    ax_v.set_xticks([-0.1, -0.05, 0.0, 0.05, 0.1])
+    ax_v.set_xticklabels([r"$-0.1$", r"$-0.05$", "0", "0.05", "0.1"])
 
-    # Single clean box: ax_top and ax_bot are drawn touching (zero gap) so
-    # the bottom spine of ax_top and the top spine of ax_bot coincide into
-    # one bold divider line. No axis-break tick marks are drawn -- just a
-    # plain rectangular border on all 4 sides, as requested.
-    ax_top.tick_params(which='both', direction='in', top=True, right=True,
-                        bottom=True, labelbottom=False)
-    ax_bot.tick_params(which='both', direction='in', top=True, right=True,
-                        bottom=True)
-    for spine in ax_top.spines.values():
-        spine.set_linewidth(1.4)
-    for spine in ax_bot.spines.values():
-        spine.set_linewidth(1.4)
+    for ax in (ax_c, ax_v):
+        ax.tick_params(which="both", direction="in", top=True, right=True,
+                       bottom=True, left=True, labelsize=10.5,
+                       length=5, width=1.0)
+        ax.tick_params(which="minor", length=2.6)
+        ax.minorticks_on()
+        ax.tick_params(which="minor", top=True, right=True, bottom=True,
+                       left=True)
+        for sp in ax.spines.values():
+            sp.set_linewidth(1.2)
+    ax_c.tick_params(labelbottom=False)
 
-    if V == 0.0:
-        valley_lbl = "K" if tau == 1 else "K'"
-        ax_top.set_title(fr"${valley_lbl}$ valley")
+    ax_v.set_xlabel(r"ka/$\pi$", fontsize=12.5, labelpad=2)
+    ax_c.set_ylabel("Energy (eV)", fontsize=11.5)
+    ax_v.set_ylabel("Energy (eV)", fontsize=11.5)
 
-    # exact paper legend labels: conduction = mu(++,+-), valence = mu(-+,--)
-    tsym = "+" if tau == 1 else "-"
-    lbl = lambda s, mu: fr"$E^{{{s},{tsym}}}_{{{mu}}}$"
-    up_a, dn_a = r"\uparrow", r"\downarrow"
+    # ---- legends, laid out as in the published panel --------------------
+    legend_entry(ax_c, 0.37, 0.87, "-", BAND_COLOR[3], mu_label("++", +1, tau))
+    legend_entry(ax_c, 0.37, 0.72, ":", BAND_COLOR[3], mu_label("++", -1, tau))
+    legend_entry(ax_c, 0.02, 0.33, "-", BAND_COLOR[2], mu_label("+-", +1, tau))
+    legend_entry(ax_c, 0.02, 0.18, ":", BAND_COLOR[2], mu_label("+-", -1, tau))
+    # On the K panel at V != 0 the paper moves the red valence legend down,
+    # to leave the top-left corner free for the magenta gap label.
+    y_red = (0.30, 0.17) if (tau == 1 and V != 0.0) else (0.93, 0.78)
+    legend_entry(ax_v, 0.02, y_red[0], "-", BAND_COLOR[1], mu_label("-+", +1, tau))
+    legend_entry(ax_v, 0.02, y_red[1], ":", BAND_COLOR[1], mu_label("-+", -1, tau))
+    legend_entry(ax_v, 0.60, 0.93, "-", BAND_COLOR[0], mu_label("--", +1, tau))
+    legend_entry(ax_v, 0.60, 0.78, ":", BAND_COLOR[0], mu_label("--", -1, tau))
 
-    def legend_entry(ax, xc, y, ls, swatch_color, text, va='top', y_is_data=False):
-        """A little [line-sample]+[black text] legend entry, swatch centred
-        just left of xc, text starting right after -- text is always BLACK,
-        only the sample line is colour-coded to the curve it represents.
-        va='top' (default) anchors the TOP of the text/swatch at y, so
-        y=0.995 sits right against the panel's top border with ~0 gap.
-        y_is_data=True switches y to an actual data value (e.g. -0.85 on
-        the energy axis) while xc stays axes-fraction (0=left..1=right),
-        using the same mixed transform trick as the cross-panel labels."""
-        transform = ax.get_yaxis_transform() if y_is_data else ax.transAxes
-        ax.plot([xc - 0.05, xc - 0.01], [y, y], transform=transform,
-                 color=swatch_color, linestyle=ls, lw=1.5, clip_on=False)
-        ax.text(xc, y, text, transform=transform, color='black',
-                fontsize=8, va=va, ha='left')
+    # ---- the V label the paper prints inside every panel -----------------
+    ax_v.text(0.5, 0.06, f"V = {V*1000:.0f} meV", transform=ax_v.transAxes,
+              fontsize=11, ha="center")
 
-    # conduction: black-curve legend CENTERED over ka/pi=0.000 (the vertical
-    # centre line where the red gap-arrow sits), right under the top border.
-    # red-curve legend sits in the bottom-left corner, where the curve is
-    # nowhere near (the curve only dips down close to the panel bottom
-    # right at k=0, in the centre -- the corners stay empty at all k).
-    legend_entry(ax_top, 0.525, 0.90, '-', 'black', lbl(up_a, "++"))
-    legend_entry(ax_top, 0.525, 0.81, ':', 'black', lbl(dn_a, "++"))
-    legend_entry(ax_top, 0.07, 0.24, '-', 'red', lbl(up_a, "+-"))
-    legend_entry(ax_top, 0.07, 0.15, ':', 'red', lbl(dn_a, "+-"))
-    # valence: red-curve legend top-left, black-curve legend top-right.
-    # b=1 / mu=-+ is red in every panel; only the K' solid-entry height
-    # differs (-0.75 vs -0.85) per explicit visual request.
-    if V != 0.0 and tau == -1:
-        legend_entry(ax_bot, 0.16, -0.73, '-', 'red', lbl(up_a, "-+"), y_is_data=True)
-        legend_entry(ax_bot, 0.16, -0.88, ':', 'red', lbl(dn_a, "-+"), y_is_data=True)
-    elif V == 0.0 and tau == 1:
-        legend_entry(ax_bot, 0.16, -0.73, '-', 'red', lbl(up_a, "-+"), y_is_data=True)
-        legend_entry(ax_bot, 0.16, -0.76, ':', 'red', lbl(dn_a, "-+"), y_is_data=True)
-    elif V == 0.0 and tau == -1:
-        legend_entry(ax_bot, 0.16, -0.75, '-', 'red', lbl(up_a, "-+"), y_is_data=True)
-        legend_entry(ax_bot, 0.16, -0.78, ':', 'red', lbl(dn_a, "-+"), y_is_data=True)
-    else:
-        legend_entry(ax_bot, 0.16, -0.85, '-', 'red', lbl(up_a, "-+"), y_is_data=True)
-        legend_entry(ax_bot, 0.16, -0.88, ':', 'red', lbl(dn_a, "-+"), y_is_data=True)
-    legend_entry(ax_bot, 0.86, 0.96, '-', 'black', lbl(up_a, "--"))
-    legend_entry(ax_bot, 0.86, 0.87, ':', 'black', lbl(dn_a, "--"))
+    annotate(ax_c, ax_v, up, dn, tau, V)
+    return ax_c, ax_v
 
-    root = np.sqrt(lam ** 2 + gamma ** 2)
+
+def cross_arrow(ax_top, ax_bot, x, y_top, y_bot, color):
+    """Double-headed arrow spanning the broken axis, from a point in the
+    conduction sub-panel to a point in the valence sub-panel.  y_top and
+    y_bot must both be evaluated AT x, or the tips will not touch the
+    curves they are meant to connect."""
+    con = ConnectionPatch(xyA=(x, y_top), coordsA=ax_top.transData,
+                          xyB=(x, y_bot), coordsB=ax_bot.transData,
+                          arrowstyle="<->", color=color, lw=1.1,
+                          mutation_scale=9)
+    ax_top.figure.add_artist(con)
+
+
+def annotate(ax_c, ax_v, up, dn, tau, V):
+    """The gap / splitting arrows.  The paper draws these on the K panels
+    only; the K' panels show the bare curves."""
+    if tau != 1:
+        return
+    lam, gam, D = P.LAMBDA, P.GAMMA, P.DELTA
+    root = np.sqrt(lam ** 2 + gam ** 2)
 
     if V == 0.0:
-        # The paper only annotates these gap/split values on the K panel
-        # (left) -- since K and K' are numerically identical at V=0, the
-        # K' (right) panel just shows the bare curves, no red/blue labels.
-        if tau == 1:
-            # --- red cross-panel arrow: conduction bottom <-> valence top ---
-            cross_arrow(ax_top, ax_bot, Eup[i0, 2], Eup[i0, 1],
-                        r"$2\Delta-\sqrt{\lambda^2+\gamma^2}$", 'red')
-            # --- blue arrow inside valence sub-axis: the 2*sqrt(l^2+g^2) split ---
-            ax_bot.annotate('', xy=(0, Eup[i0, 1]), xytext=(0, Eup[i0, 0]),
-                             arrowprops=dict(arrowstyle='<->', color='blue', lw=1.3))
-            ax_bot.text(0.012, (Eup[i0, 0] + Eup[i0, 1]) / 2,
-                        r"$2\sqrt{\lambda^2+\gamma^2}$", color='blue', fontsize=9, va='center')
-        ax_bot.text(0.0, val_lo - 0.012, r"$V=0~\mathrm{meV}$", fontsize=9, ha='center')
+        # gap:  2*Delta - sqrt(lambda^2 + gamma^2)     [p.2, item (iii)]
+        cross_arrow(ax_c, ax_v, 0.0, up[I0, 2], up[I0, 1], "red")
+        ax_c.text(0.545, 0.11, r"$2\Delta-\sqrt{\lambda^2+\gamma^2}$",
+                  transform=ax_c.transAxes, color="red", fontsize=10,
+                  va="center")
+        # valence interlayer splitting: 2*sqrt(lambda^2 + gamma^2)  [p.2 (ii)]
+        ax_v.annotate("", xy=(0, up[I0, 1]), xytext=(0, up[I0, 0]),
+                      arrowprops=dict(arrowstyle="<->", color="blue", lw=1.1,
+                                      mutation_scale=9))
+        ax_v.text(0.53, 0.46, r"$2\sqrt{\lambda^2+\gamma^2}$",
+                  transform=ax_v.transAxes, color="blue", fontsize=10.5,
+                  va="center")
     else:
-        Omega_up = +lam * V / root
-        Omega_dn = -lam * V / root
+        # conduction layer splitting: 2V                          [p.2 (ii)]
+        ax_c.annotate("", xy=(0, up[I0, 3]), xytext=(0, up[I0, 2]),
+                      arrowprops=dict(arrowstyle="<->", color="blue", lw=1.1,
+                                      mutation_scale=9))
+        ax_c.text(0.545, 0.30, r"$2V$", transform=ax_c.transAxes,
+                  color="blue", fontsize=11, va="center")
 
-        if tau == 1:
-            # blue "2V" split, inside the conduction sub-axis
-            ax_top.annotate('', xy=(0, Eup[i0, 3]), xytext=(0, Eup[i0, 2]),
-                             arrowprops=dict(arrowstyle='<->', color='blue', lw=1.3))
-            ax_top.text(0.012, (Eup[i0, 2] + Eup[i0, 3]) / 2, r"$2V$",
-                        color='blue', fontsize=9, va='center')
+        # gap for each spin channel, offset sideways so the two arrows do
+        # not overlap.  Each is evaluated at its own x.
+        ir = np.argmin(np.abs(Q - 0.012))
+        im = np.argmin(np.abs(Q + 0.012))
+        cross_arrow(ax_c, ax_v, +0.012, up[ir, 2], up[ir, 1], "red")
+        cross_arrow(ax_c, ax_v, -0.012, dn[im, 2], dn[im, 1], "magenta")
+        ax_c.text(0.55, 0.075,
+                  r"$2\Delta-V-\sqrt{\lambda^2+\gamma^2}-\Omega^{\uparrow}$",
+                  transform=ax_c.transAxes, color="red", fontsize=8,
+                  va="center")
+        ax_v.text(0.015, 0.94,
+                  r"$2\Delta-V-\sqrt{\lambda^2+\gamma^2}+\Omega^{\downarrow}$",
+                  transform=ax_v.transAxes, color="magenta", fontsize=8,
+                  va="center")
 
-            # red / magenta cross-panel gap arrows (spin up / spin down channel).
-            # Offset sideways so they don't overlap -- magenta on the LEFT
-            # (x=-0.02), red on the RIGHT (x=+0.02). Each arrow must use the
-            # curve's actual value AT that same x, not at k=0 (i0), otherwise
-            # its tip doesn't actually touch the (dotted/solid) curve it's
-            # supposed to connect to and a visible gap appears.
-            ix_r = np.argmin(np.abs(q - 0.02))     # red     -> x = +0.02
-            ix_m = np.argmin(np.abs(q - (-0.02)))  # magenta -> x = -0.02
-            cross_arrow(ax_top, ax_bot, Eup[ix_r, 2], Eup[ix_r, 1],
-                        r"$2\Delta-V-\sqrt{\lambda^2+\gamma^2}-\Omega^{\uparrow}$", 'red',
-                        x_pos=0.02, xm=0.98, y_offset=0.004)
-            cross_arrow(ax_top, ax_bot, Edn[ix_m, 2], Edn[ix_m, 1],
-                        r"$2\Delta-V-\sqrt{\lambda^2+\gamma^2}+\Omega^{\downarrow}$", 'magenta',
-                        x_pos=-0.02, xm=0.06, ha='left',
-                        label_ax=ax_bot, label_y=-0.73)
-
-            # blue fraction: spin splitting of the valence-top branch = 2V*lam/root
-            ax_bot.annotate('', xy=(0, Eup[i0, 1]), xytext=(0, Edn[i0, 1]),
-                             arrowprops=dict(arrowstyle='<->', color='blue', lw=1.1))
-            ax_bot.text(0.0, -0.85,
-                        r"$\dfrac{2V\lambda}{\sqrt{\lambda^2+\gamma^2}}$",
-                        color='blue', fontsize=6.5, va='center', ha='center')
-        ax_bot.text(0.0, val_lo - 0.012, r"$V=15~\mathrm{meV}$", fontsize=9, ha='center')
+        # valence spin splitting: 2*V*lambda/sqrt(lambda^2+gamma^2) [p.2 (ii)]
+        # The splitting is only ~25 meV, so the two arrowheads would collide
+        # at the default size; mutation_scale is reduced to keep it legible.
+        ax_v.annotate("", xy=(0, up[I0, 1]), xytext=(0, dn[I0, 1]),
+                      arrowprops=dict(arrowstyle="<->", color="blue", lw=0.9,
+                                      mutation_scale=5, shrinkA=0, shrinkB=0))
+        ax_v.text(0.545, 0.70,
+                  r"$\dfrac{2V\lambda}{\sqrt{\lambda^2+\gamma^2}}$",
+                  transform=ax_v.transAxes, color="blue", fontsize=8.5,
+                  va="top", ha="center")
 
 
-# ----------------- Compose the figure: 3 outer rows (V=0 block, spacer, V=15 block) x 2 cols -----------------
-# Each (valley, V) block is kept a clear RECTANGLE, not a square: the
-# conduction sub-panel (smaller height_ratio=1) sits on top, the taller
-# valence sub-panel (height_ratio=1.3) sits below.
-#
-# TO CHANGE THE WIDTH (only), edit FIG_WIDTH below -- bigger number = wider
-# panels, SAME height. This is the one knob to turn; nothing else needs to
-# change and it will not disturb the touching-divider / legend layout.
-FIG_WIDTH = 15.6    # inches; try 7.5, 8.5, etc. to make panels wider
-FIG_HEIGHT = 15.0  # inches; controls height only
+# =============================================================================
+if __name__ == "__main__":
+    print("Fig. 1 - solving Eq. (3) and applying Eq. (2)...")
 
-fig = plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
-gs = fig.add_gridspec(3, 2, height_ratios=[2.3, 0.15, 2.3], hspace=0.06, wspace=0.45)
+    fig = plt.figure(figsize=(7.3, 8.15))
+    gs = fig.add_gridspec(2, 2, hspace=0.245, wspace=0.335,
+                          left=0.105, right=0.985, top=0.995, bottom=0.062)
 
-print("Fig 1: starting computation...")
-print("  panel: K valley, V=0 meV...")
-draw_panel(fig, gs, 0, 0, tau=+1, V=0.0)     # K,  V=0
-print("  panel: K' valley, V=0 meV...")
-draw_panel(fig, gs, 0, 1, tau=-1, V=0.0)     # K', V=0
-print("  panel: K valley, V=15 meV...")
-draw_panel(fig, gs, 2, 0, tau=+1, V=0.015)   # K,  V=15meV
-print("  panel: K' valley, V=15 meV...")
-draw_panel(fig, gs, 2, 1, tau=-1, V=0.015)   # K', V=15meV
-print("  panels done, finalizing figure...")
+    for row, V in enumerate([0.0, 0.015]):
+        for col, tau in enumerate([+1, -1]):
+            print(f"  panel: {'K' if tau > 0 else chr(75)+chr(39)} valley, "
+                  f"V = {V*1000:.0f} meV")
+            draw_panel(fig, gs[row, col], tau, V)
 
-fig.suptitle(
-    r"Band structure of bilayer MoS$_2$ for $\lambda=0.074$ eV and $\gamma=0.047$ eV.  "
-    r"Upper: $V=0$; Lower: $V=15$ meV.  $\Omega^s = s\lambda V/\sqrt{\lambda^2+\gamma^2}$.",
-    fontsize=10
-)
-
-fig.subplots_adjust(left=0.13, right=0.97, top=0.93, bottom=0.06)
-
-# Save BEFORE show(): once plt.show() returns (window closed), the figure is
-# gone, so a savefig() placed after it would write a blank PNG.
-plt.savefig("bilayer_MoS2_fig1_matched.png", dpi=300, bbox_inches="tight")
-print("Saved: bilayer_MoS2_fig1_matched.png")
-
-plt.show()
+    plt.savefig("bilayer_MoS2_fig1.png", dpi=300)
+    print("Saved: bilayer_MoS2_fig1.png")
+    plt.show()

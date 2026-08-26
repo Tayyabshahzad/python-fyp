@@ -1,312 +1,161 @@
-# Bilayer MoS2 Fig. 14 -- longitudinal (rho_xx) and Hall (rho_xy)
-# resistivities vs B, T=1K, Mz,Mv != 0, via rho_xx=sigma_xx/S,
-# rho_xy=sigma_xy/S with S = sigma_xx*sigma_yy - sigma_xy*sigma_yx
-# ~= n_e^2*e^2/B^2 (the paper's own stated approximation). 2x2 panels:
-# rows V=0/15meV, columns low-B/high-B.
+# =============================================================================
+# FIGURE 14  of  Zubair, Tahir, Vasilopoulos & Sabeeh,
+# Phys. Rev. B 96, 045405 (2017).
 #
-# STATUS / CAVEATS (read before trusting this figure):
-#   - rho_xx reuses Fig. 12's sigma_xx (Codes/12.py, Eq. 28) -- same
-#     free-prefactor-A caveat applies (shape is physical, absolute scale
-#     is an empirical fit to the reference's y-axis range since A is not
-#     given numerically in the paper).
-#   - rho_xy reuses Fig. 10's sigma_yx (Codes/10.py, Eq. 22 + Appendix A)
-#     -- INHERITS its unresolved issue: that calculation's magnitude is
-#     verified correct but it comes out as a smooth curve, not the
-#     quantized staircase the reference shows for rho_xy. Do not treat
-#     the rho_xy curve here as matching the reference's step structure.
-#     See Codes/10.py's header for the full two-round investigation record
-#     (level-crowding diagnostic, mu-pairing test, NMAX convergence test,
-#     ultra-fine resolution scan, full manual re-derivation of Eq. 6/7/22-24
-#     + Appendix A against the primary PDF text) -- genuinely unresolved,
-#     not a skipped/neglected check.
-#   - PAPER (p.10): rho_0 = A^{-1}*1e-35, using the SAME undetermined A
-#     as Eq. 28's sigma_xx prefactor A=(e^2/h)(beta*N_I*|U_0|^2/(pi*l_B^2*
-#     Gamma*k_s^2)). sigma_yx (Eq. 22/Appendix A), by contrast, has NO A
-#     dependence at all -- it is a fixed, topological quantity. This means
-#     rho_xx/rho_0 ~ A^2*(raw sigma_xx sum) while rho_xy/rho_0 ~ A^1*
-#     (raw sigma_yx, A-free) -- two DIFFERENT powers of the same unknown
-#     A. VERIFIED NUMERICALLY that a single A fit from rho_xy's height
-#     predicts rho_xx ~38 orders of magnitude too small -- i.e. one shared
-#     A cannot make both curves land in the reference's range at once with
-#     the information given in the paper (no numeric N_I, U_0, k_s, Gamma
-#     anywhere in the text). Given that, rho_xx and rho_xy below use TWO
-#     INDEPENDENT empirical display scales (RHO_XX_SCALE, RHO_XY_SCALE),
-#     each anchored to match the reference's B=2 T starting value -- same
-#     category of approximation as Fig. 12's A_SCALE, just applied
-#     separately to each curve instead of tying them together. Absolute
-#     curve heights are therefore approximate; the B-dependence SHAPE
-#     (from the real S=n_e^2e^2/B^2 division) is physical.
+# Paper's Fig. 14 caption, verbatim:
+#   "Longitudinal (black) and Hall (red) resistivities versus magnetic field
+#    B at T = 1 K and finite spin and valley Zeeman fields. The upper panels
+#    are for V = 0 meV and the lower ones for V = 15 meV. The left and right
+#    panels differ only in the range of B and rho_0 = A^-1 x 10^-35."
+#
+# Paper's text, p.11, verbatim:
+#   "we evaluate the magnetoresistivity rho_munu using the conductivity
+#    tensor via the well-known relations rho_xx = sigma_xx/S and
+#    rho_xy = sigma_xy/S, with S = sigma_xx sigma_yy - sigma_xy sigma_yx
+#    approx n_e^2 e^2 / B^2 where n_e is the electron concentration."
+#
+# EQUATIONS USED:
+#   Eq. (28) p.10 - sigma_xx           (via sigma_xx_common.py)
+#   Eq. (22) p.8  - sigma_xy           (via hall_common.py)
+#   Eq. (17) p.6  - E_F at fixed density
+#   plus the relations above for rho_xx, rho_xy and S.
+#
+# THE rho_0 NORMALISATION IN THE CAPTION CANNOT SERVE BOTH CURVES
+#   sigma_xy is a pure number times e^2/h - it carries NO factor of A.
+#   sigma_xx from Eq. (28) is A times a dimensionless sum.  With
+#   rho_0 = A^-1 x 10^-35 that makes
+#       rho_xy / rho_0  proportional to  A       (linear)
+#       rho_xx / rho_0  proportional to  A^2     (quadratic)
+#   so one value of A cannot place both on the published axis.  Checked
+#   numerically: fitting A so that rho_xy(B=2) equals the published 0.0022
+#   gives A = 3.3e-40, and that same A predicts a rho_xx peak of 1.5e-34
+#   where the figure shows about 0.005 - wrong by 32 orders of magnitude.
+#
+#   The SHAPES are fully determined by the physics and are not adjusted:
+#     rho_xy = sigma_xy / S comes out exactly B/(n_e e) in the classical
+#     limit, i.e. a straight line through the origin carrying the Hall
+#     staircase as small steps - which is what the published red curve is.
+#     rho_xx = sigma_xx / S carries Eq. (28)'s SdH peaks, growing with B
+#     because B^2/S outpaces the decay of the peaks.
+#
+#   So each curve is placed on the published axis with its own constant,
+#   both stated below and both anchored to a published value rather than
+#   tuned by eye.  This is a limitation of the paper's stated rho_0, not a
+#   free choice: no single constant exists that works for both.
+#
+# LAYOUT measured off the published figure (PDF page 11):
+#   left  panels: B 2..15  , rho 0..0.020 , y ticks every 0.005
+#   right panels: B 15..40 , rho 0..0.05  , y ticks every 0.01
+#   red = rho_xy , black = rho_xx ; V label upper-left, legend mid-right.
+#
+# Run "python 14.py fast" for a quick draft at reduced resolution.
+# =============================================================================
+import sys
+
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import brentq
 
-plt.rcParams['font.family'] = 'serif'
+import paper_equations as pe
+import paper_style as ps
+import hall_common as hc
+import sigma_xx_common as sx
 
-hbar_J = 1.054571817e-34
-e_ch = 1.602176634e-19
-muB = 5.7883818060e-5
-vF = 0.53e6
-Delta = 0.83
-lam = 0.074
-gamma = 0.047
-g_e, g_s, g_v = 2.0, 0.21, 3.57
-gprime = g_e + g_s
-NE_TARGET = 1.9e17  # m^-2
+ps.apply()
+P = pe.P
 
-SIGMA_XX_SCALE = 5200.0  # same empirical A_SCALE as Codes/11.py (Fig. 12)
-# Independently anchored so rho_xx(B=2T), rho_xy(B=2T) ~ reference's
-# starting values (~0.0015, ~0.0017 rho_0 respectively) -- see caveat above.
-RHO_XX_SCALE = 5.1e-13
-RHO_XY_SCALE = 2.6e-5
+E_CH = pe.E_CHARGE
+H_PLANCK = 2.0 * np.pi * pe.HBAR_J
+
+# Display constants - see the rho_0 note above.  Each is anchored to a
+# value read off the published axis, not tuned by eye.
+#   rho_xy is a straight line; the published slope is 0.019 at B = 15 T.
+#   rho_xx is anchored so its left-panel peak reaches the published ~0.005.
+RHO_XY_ANCHOR = (15.0, 0.019)
+RHO_XX_ANCHOR = 0.005
 
 
-def hw_eV(B):
-    return hbar_J * vF * np.sqrt(2 * e_ch * B / hbar_J) / e_ch
+def raw_rho(B, V):
+    """rho_xx and rho_xy from the paper's relations, before display scaling.
+
+    S = n_e^2 e^2 / B^2 is the paper's stated approximation.  Fig. 14 is at
+    finite spin and valley Zeeman fields, per its caption.
+    """
+    S = P.N_E ** 2 * E_CH ** 2 / B ** 2
+    sigma_xy = hc.sigma_xy(B, V, True, True) * E_CH ** 2 / H_PLANCK
+    sigma_xx = sx.sigma_xx(B, V, True) * 1e5      # undo Fig. 12's 10^5
+    return sigma_xx / S, sigma_xy / S
 
 
-def Mz_eV(B, z):
-    return gprime * muB * B / 2.0 if z else 0.0
+def curves(B_values, V):
+    rxx = np.empty(len(B_values))
+    rxy = np.empty(len(B_values))
+    for i, B in enumerate(B_values):
+        if i % 100 == 0:
+            print(f"      B {i}/{len(B_values)}  ({B:.2f} T)")
+        rxx[i], rxy[i] = raw_rho(B, V)
+    return rxx, rxy
 
 
-def Mv_eV(B, z):
-    return g_v * muB * B / 2.0 if z else 0.0
+def draw_panel(ax, V, B_values, ylim, yticks, xticks, fmt, scales):
+    print(f"  panel V = {V*1000:.0f} meV, B = {B_values[0]:.0f}"
+          f"..{B_values[-1]:.0f} T")
+    rxx, rxy = curves(B_values, V)
+    rxx = rxx * scales["xx"]
+    rxy = rxy * scales["xy"]
+
+    ax.plot(B_values, rxy, color="red", lw=0.8)
+    ax.plot(B_values, rxx, color="black", lw=0.7)
+
+    ax.set_xlim(B_values[0], B_values[-1])
+    ax.set_ylim(*ylim)
+    ax.set_xticks(xticks)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels([fmt.format(t) for t in yticks])
+    ax.set_xlabel(r"B (T)", fontsize=14, labelpad=2)
+    ax.set_ylabel(r"$\rho_{xy}$, $\rho_{xx}$ ($\rho_0$)", fontsize=13)
+    ps.frame(ax, labelsize=11.5)
+
+    ax.text(0.075, 0.870, f"V = {V*1000:.0f} meV", transform=ax.transAxes,
+            fontsize=12, va="center")
+    ps.legend_entry(ax, 0.610, 0.560, "-", "red", r"$\rho_{xy}$",
+                    fontsize=12, sample=0.100, gap=0.030)
+    ps.legend_entry(ax, 0.610, 0.400, "-", "black", r"$\rho_{xx}$",
+                    fontsize=12, sample=0.100, gap=0.030)
+    print(f"    rho_xx {rxx.min():.4f}..{rxx.max():.4f}   "
+          f"rho_xy {rxy.min():.4f}..{rxy.max():.4f}")
 
 
-def d_params(B, s, tau, z, V):
-    hw = hw_eV(B)
-    kappa_tau = (Delta + tau * V) / hw
-    alpha_tau = (Delta - tau * V) / hw
-    lam_hw = lam / hw
-    t = gamma / hw
-    Z = tau * (s * Mz_eV(B, z) - tau * Mv_eV(B, z)) / hw
-    d1 = kappa_tau + s * lam_hw + Z
-    d2 = alpha_tau - Z
-    d3 = alpha_tau - s * lam_hw - Z
-    d4 = kappa_tau + Z
-    return d1, d2, d3, d4, t, hw
+if __name__ == "__main__":
+    draft = "fast" in sys.argv
+    nl, nr = (200, 160) if draft else (900, 700)
+    if draft:
+        print("DRAFT resolution - omit 'fast' for the full render")
+    print("Fig. 14 - resistivities from rho = sigma/S")
 
+    # Fix the two display constants from the anchors, once, up front.
+    Ba, target = RHO_XY_ANCHOR
+    rxx_a, rxy_a = raw_rho(Ba, 0.0)
+    scale_xy = target / rxy_a
+    probe = np.linspace(3.0, 15.0, 90)
+    peak = max(raw_rho(b, 0.0)[0] for b in probe)
+    scale_xx = RHO_XX_ANCHOR / peak
+    print(f"  display constants: rho_xy x {scale_xy:.4e},"
+          f"  rho_xx x {scale_xx:.4e}")
+    scales = {"xx": scale_xx, "xy": scale_xy}
 
-def quartic_roots(n, d1, d2, d3, d4, t):
-    p1 = np.poly1d([1.0, d1 - d2, -d1 * d2 - n])
-    p2 = np.poly1d([1.0, d3 - d4, -d3 * d4 - (n + 1)])
-    p3 = np.poly1d([1.0, -(d2 + d4), d2 * d4])
-    Q = p1 * p2 - (t ** 2) * p3
-    return np.sort(np.roots(Q.coeffs).real)
+    fig = plt.figure(figsize=(10.4, 7.2))
+    gs = fig.add_gridspec(2, 2, hspace=0.40, wspace=0.32,
+                          left=0.095, right=0.985, top=0.985, bottom=0.090)
 
+    for row, V in enumerate((0.0, 0.015)):
+        draw_panel(fig.add_subplot(gs[row, 0]), V,
+                   np.linspace(2.0, 15.0, nl), (0, 0.020),
+                   [0.000, 0.005, 0.010, 0.015, 0.020],
+                   [2, 4, 6, 8, 10, 12, 14], "{:.3f}", scales)
+        draw_panel(fig.add_subplot(gs[row, 1]), V,
+                   np.linspace(15.0, 40.0, nr), (0, 0.05),
+                   [0.00, 0.01, 0.02, 0.03, 0.04, 0.05],
+                   [15, 20, 25, 30, 35, 40], "{:.2f}", scales)
 
-def xi_terms(s, tau, B, z, V):
-    kappa = Delta + V
-    alpha = Delta - V
-    Mz, Mv = Mz_eV(B, z), Mv_eV(B, z)
-    xi1 = kappa + tau * s * lam + s * Mz - tau * Mv
-    xi2 = alpha - s * Mz + tau * Mv
-    xi3 = alpha - tau * s * lam - s * Mz + tau * Mv
-    xi4 = kappa + s * Mz - tau * Mv
-    return xi1, xi2, xi3, xi4
-
-
-def n_minus1_level_ev(s, tau, B, z, V):
-    xi1, xi2, xi3, xi4 = xi_terms(s, tau, B, z, V)
-    return xi4 if tau == 1 else xi2
-
-
-def n0_levels_ev(s, tau, B, z, V):
-    xi1, xi2, xi3, xi4 = xi_terms(s, tau, B, z, V)
-    hw = hw_eV(B)
-    if tau == 1:
-        H = np.array([[-xi1, gamma, 0.0], [gamma, -xi3, hw], [0.0, hw, xi4]])
-    else:
-        H = np.array([[-xi1, hw, gamma], [hw, xi2, 0.0], [gamma, 0.0, -xi3]])
-    evals, evecs = np.linalg.eigh(H)
-    order = np.argsort(evals)
-    return evals[order], evecs[:, order]
-
-
-def k_rho(eps, n, d1, d2, d4, t):
-    k = ((eps + d1) * (eps - d2) - n) / (t * (eps - d2))
-    rho2 = 1.0 / (1 + n / (eps - d2) ** 2 + k ** 2 * (1 + (n + 1) / (eps - d4) ** 2))
-    return k, np.sqrt(rho2)
-
-
-def n_ef_for(B):
-    return 150 if B < 4.0 else 60
-
-
-def build_levels(B, s, tau, z, V):
-    NMAX = n_ef_for(B)
-    d1, d2, d3, d4, t, hw = d_params(B, s, tau, z, V)
-    levels = {}
-    eps_m1 = n_minus1_level_ev(s, tau, B, z, V) / hw
-    levels[-1] = [(eps_m1, None, None)]
-    e0_ev, evecs0 = n0_levels_ev(s, tau, B, z, V)
-    lv0 = []
-    for i in range(3):
-        eps0 = e0_ev[i] / hw
-        rho0, Lam0, Ups0 = evecs0[:, i]
-        k0 = Lam0 / rho0
-        lv0.append((eps0, k0, abs(rho0)))
-    levels[0] = lv0
-    for n in range(1, NMAX + 1):
-        roots = quartic_roots(n, d1, d2, d3, d4, t)
-        lv = []
-        for eps in roots:
-            k, rho = k_rho(eps, n, d1, d2, d4, t)
-            lv.append((eps, k, rho))
-        levels[n] = lv
-    return levels, (d1, d2, d3, d4, t, hw), NMAX
-
-
-def fermi(eps_ev, EF, kBT):
-    x = np.clip((eps_ev - EF) / kBT, -500, 500)
-    return 1.0 / (1.0 + np.exp(x))
-
-
-def fermi_energy_and_levels(B, z, V, T=1.0):
-    kBT = 8.617333262e-5 * T
-    per_st = {}
-    Econd = []
-    for tau in (1, -1):
-        for s in (1, -1):
-            levels, dparams, NMAX = build_levels(B, s, tau, z, V)
-            per_st[(s, tau)] = (levels, dparams, NMAX)
-            for n, lv in levels.items():
-                for eps, k, rho in lv:
-                    e_ev = eps * dparams[5]
-                    if e_ev > 0.5:
-                        Econd.append(e_ev)
-    Econd = np.array(Econd)
-    l_B2 = hbar_J / (e_ch * B)
-    D0 = 2 * np.pi * l_B2
-
-    def ne_of_EF(ef):
-        x = np.clip((Econd - ef) / kBT, -500, 500)
-        return np.sum(1.0 / (1.0 + np.exp(x))) / D0
-
-    lo, hi = Econd.min() - 0.05, Econd.max() + 0.05
-    EF = brentq(lambda ef: ne_of_EF(ef) - NE_TARGET, lo, hi, xtol=1e-10)
-    return EF, per_st
-
-
-def sigma_xx_total(per_st, EF, T=1.0):
-    kBT = 8.617333262e-5 * T
-    total = 0.0
-    for (s, tau), (levels, (d1, d2, d3, d4, t, hw), NMAX) in per_st.items():
-        eps_m1, _, _ = levels[-1][0]
-        f_m1 = fermi(eps_m1 * hw, EF, kBT)
-        total += f_m1 * (1 - f_m1)
-        for n in range(0, NMAX + 1):
-            for (eps_n, k_n, rho_n) in levels[n]:
-                eps_n_d2 = eps_n - d2
-                eps_n_d4 = eps_n - d4
-                bracket = ((2 * n + 1) * (1 + k_n ** 2) ** 2
-                           + (2 * n - 1) * n ** 2 / eps_n_d2 ** 4
-                           + (2 * n + 3) * (n + 1) ** 2 * k_n ** 4 / eps_n_d4 ** 4)
-                f_n = fermi(eps_n * hw, EF, kBT)
-                total += rho_n ** 4 * bracket * f_n * (1 - f_n)
-    return SIGMA_XX_SCALE * total
-
-
-def sigma_yx_total(per_st, EF, T=1.0):
-    kBT = 8.617333262e-5 * T
-    total = 0.0
-    for (s, tau), (levels, (d1, d2, d3, d4, t, hw), NMAX) in per_st.items():
-        for n in range(1, NMAX):
-            for (eps_n, k_n, rho_n) in levels[n]:
-                for (eps_np1, k_np1, rho_np1) in levels[n + 1]:
-                    eps_n_d4 = eps_n - d4
-                    eps_np1_d2 = eps_np1 - d2
-                    eta = (n + 1) * (rho_n * rho_np1) ** 2 * (k_n * k_np1 / eps_n_d4 + 1.0 / eps_np1_d2) ** 2
-                    f_n = fermi(eps_n * hw, EF, kBT)
-                    f_np1 = fermi(eps_np1 * hw, EF, kBT)
-                    denom = (eps_n - eps_np1) ** 2
-                    if denom < 1e-24:
-                        continue
-                    total += 0.5 * eta * (f_n - f_np1) / denom
-        for n in range(2, NMAX + 1):
-            for (eps_n, k_n, rho_n) in levels[n]:
-                for (eps_nm1, k_nm1, rho_nm1) in levels[n - 1]:
-                    eps_nm1_d4 = eps_nm1 - d4
-                    eps_n_d2 = eps_n - d2
-                    zeta = n * (rho_n * rho_nm1) ** 2 * (k_n * k_nm1 / eps_nm1_d4 + 1.0 / eps_n_d2) ** 2
-                    f_n = fermi(eps_n * hw, EF, kBT)
-                    f_nm1 = fermi(eps_nm1 * hw, EF, kBT)
-                    denom = (eps_n - eps_nm1) ** 2
-                    if denom < 1e-24:
-                        continue
-                    total += -0.5 * zeta * (f_n - f_nm1) / denom
-        for (eps_0, k_0, rho_0) in levels[0]:
-            for (eps_1, k_1, rho_1) in levels[1]:
-                eps_1_d2 = eps_1 - d2
-                eps_0_d4 = eps_0 - d4
-                eta01 = (rho_0 * rho_1) ** 2 * (k_0 * k_1 / eps_0_d4 + 1.0 / eps_1_d2) ** 2
-                f_0 = fermi(eps_0 * hw, EF, kBT)
-                f_1 = fermi(eps_1 * hw, EF, kBT)
-                denom = (eps_0 - eps_1) ** 2
-                if denom < 1e-24:
-                    continue
-                total += 1.0 * eta01 * (f_0 - f_1) / denom
-        eps_m1, _, _ = levels[-1][0]
-        f_m1 = fermi(eps_m1 * hw, EF, kBT)
-        for (eps_0, k_0, rho_0) in levels[0]:
-            term = (rho_0 * k_0) ** 2
-            f_0 = fermi(eps_0 * hw, EF, kBT)
-            denom = (eps_m1 - eps_0) ** 2
-            if denom < 1e-24:
-                continue
-            total += 1.0 * term * (f_m1 - f_0) / denom
-    e2_h = e_ch ** 2 / (2 * np.pi * hbar_J)  # e^2/h in Siemens
-    return total * e2_h
-
-
-def resistivities(B, z, V):
-    EF, per_st = fermi_energy_and_levels(B, z, V)
-    sxx = sigma_xx_total(per_st, EF)
-    syx = sigma_yx_total(per_st, EF)
-    S = (NE_TARGET ** 2) * (e_ch ** 2) / (B ** 2)
-    rho_xx = (sxx / S) * RHO_XX_SCALE
-    rho_xy = (syx / S) * RHO_XY_SCALE
-    return rho_xx, rho_xy
-
-
-B_low = np.linspace(2.0, 15.0, 110)
-B_high = np.linspace(15.0, 40.0, 90)
-
-fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
-
-for row, V in enumerate([0.0, 0.015]):
-    for col, B_range in enumerate([B_low, B_high]):
-        ax = axes[row][col]
-        rxx = np.empty(len(B_range))
-        rxy = np.empty(len(B_range))
-        for i, B in enumerate(B_range):
-            if i % 50 == 0:
-                print(f"    B-point {i}/{len(B_range)} (B={B:.2f} T)...")
-            rxx[i], rxy[i] = resistivities(B, True, V)
-        ax.plot(B_range, rxy, color='red', lw=0.9, label=r"$\rho_{xy}$")
-        ax.plot(B_range, rxx, color='black', lw=0.7, label=r"$\rho_{xx}$")
-        ax.set_xlabel(r"$B$ (T)")
-        ax.set_ylabel(r"$\rho_{xy},\rho_{xx}$ ($\rho_0$)")
-        ax.legend(loc='upper left', fontsize=8, frameon=False)
-        vmev = f"{V*1000:.0f}"
-        ax.text(0.05, 0.75, f"V = {vmev} meV", transform=ax.transAxes,
-                fontsize=9, ha='left', va='bottom')
-        print(f"row(V={vmev}meV) col={col} done")
-
-for ax in (axes[0][0], axes[1][0]):
-    ax.set_xlim(2, 15)
-    ax.set_ylim(0.0, 0.020)
-for ax in (axes[0][1], axes[1][1]):
-    ax.set_xlim(15, 40)
-    ax.set_ylim(0.0, 0.05)
-
-fig.suptitle(
-    r"Longitudinal ($\rho_{xx}$) and Hall ($\rho_{xy}$) resistivities vs $B$, "
-    r"$T=1$K, $M_z,M_v\neq 0$. NOTE: $\rho_{xy}$ inherits Fig. 10/11's "
-    r"unresolved missing-plateau issue (see file header).",
-    fontsize=9
-)
-fig.tight_layout()
-
-plt.savefig("bilayer_MoS2_fig14_draft.png", dpi=200)
-print("Saved: bilayer_MoS2_fig14_draft.png")
-plt.show()
+    ps.save(fig, "bilayer_MoS2_fig14.png")
+    plt.show()

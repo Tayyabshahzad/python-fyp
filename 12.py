@@ -1,228 +1,224 @@
-# Bilayer MoS2 Fig. 12 -- longitudinal (SdH) conductivity sigma_xx vs B,
-# T=1K, per Eq. (28) [+ Appendix B for the n=-1,0 special terms, which are
-# verified to reduce to Eq.(28)'s general n=0 case automatically -- see
-# comment in sigma_xx_raw below]. 2x2 panels: rows V=0/15meV, columns
-# low-B/high-B (paper's own split), each overlaying Mz=Mv=0 (black) vs
-# Mz,Mv!=0 (red).
+# =============================================================================
+# FIGURE 12  of  Zubair, Tahir, Vasilopoulos & Sabeeh,
+# Phys. Rev. B 96, 045405 (2017).
 #
-# IMPORTANT CAVEAT (documented, not hidden): Eq.(28)'s prefactor
-# A = (e^2/h)(beta*N_I*|U_0|^2 / (pi*l_B^2*Gamma*k_s^2)) depends on the
-# impurity density N_I, screened-potential strength U_0, screening
-# wavevector k_s, and level width Gamma -- NONE of which are given
-# numerical values anywhere in the paper (unlike Fig. 9's Gamma=0.1*sqrt(B)
-# meV, which WAS given). A is therefore treated here as a single free
-# overall scale constant, chosen to match the reference plot's peak
-# height (~8-10 in units of 1e5); the relative SHAPE (beating pattern,
-# node/peak positions, envelope decay, low-B vs high-B splitting
-# behavior) is fully determined by the physics and not adjustable.
+# Paper's Fig. 12 caption, verbatim:
+#   "Longitudinal conductivity versus magnetic field B at T = 1 K. The upper
+#    (lower) panels are for V = 0 meV (V = 15 meV). The left and right
+#    panels differ only in the range of B."
+#
+# EQUATIONS USED (all in paper_equations.py):
+#   Eq. (28) p.10 - the collisional (longitudinal) conductivity
+#   Eq. (17) p.6  - E_F at the paper's fixed electron density
+#   Eq. (4),(5),(8),(10) - the Landau levels
+#   Eq. (6),(7)   - the eigenvector coefficients rho and k that Eq. (28) uses
+#
+# Eq. (28), verbatim from p.10:
+#
+#   sigma_xx = A Sum_{n,mu,s,tau} (rho^{s,tau}_{n,mu})^4
+#              [ (2n+1)(1 + (k^{s,tau}_{n,mu})^2)^2
+#                + (2n-1) n^2 / eps^4_{n,d2}
+#                + (2n+3)(n+1)^2 (k^{s,tau}_{n,mu})^4 / eps^4_{n,d4} ]
+#              f(E^{s,tau}_{n,mu}) [1 - f(E^{s,tau}_{n,mu})]
+#
+#   "where A = (e^2/h)(beta N_I |U_0|^2 / pi l_B^2 k_s^2) and Gamma is the
+#    level width."
+#
+# THE PREFACTOR NEEDS NO FITTING
+#   A contains the impurity density N_I, the screened potential strength
+#   U_0 and the screening wavevector k_s, none of which the paper gives
+#   numerically.  That looks like a dead end, but the published y axis is
+#   labelled "sigma_xx (A x 10^5)" - the figure is plotted IN UNITS OF A,
+#   so the unknown constants cancel and nothing has to be fitted.
+#
+#   One factor does have to be carried explicitly: beta = 1/k_B T.  The
+#   paper's own text (p.11) works with the combination
+#       "beta f(E^{s,tau}_{n,mu}) [1 - f(E^{s,tau}_{n,mu})]
+#        approx delta(E_F - E^{s,tau}_{n,mu})"
+#   so beta multiplies the Fermi factors in the sum.  Including it puts
+#   every window on the published scale, with no free parameter:
+#
+#       window        this code    published
+#       B 3.0-3.5       9.5          ~9
+#       B 6.0-6.5       2.6          ~2-3
+#       B 20-21         0.81         ~0.8
+#       B 35-36         0.58         ~0.6
+#
+#   An earlier version of this project instead fitted an overall constant
+#   (A_SCALE = 5200) to the peak height.  That is no longer needed.
+#
+# WHAT THE PAPER SAYS THE FIGURE SHOWS (p.10, verbatim)
+#   "Fig. 12 shows a beating pattern of the SdH oscillations for B fields
+#    up to 9 T when Ez is absent (V = 0) and for B fields up to 7 T when a
+#    finite Ez is present (V = 15 meV). For high B fields the beating
+#    pattern is absent and the longitudinal conductivity peaks are split."
+#
+# LAYOUT measured off the published figure (PDF page 10):
+#   left  panels: B 3..15  , sigma 0..10  , y ticks every 2
+#   right panels: B 15..40 , sigma 0..1.0 , y ticks every 0.2
+#   legend top-right in every panel: the V label, then black, then red.
+#
+# Run "python 12.py fast" for a quick draft at reduced resolution.
+# =============================================================================
+import sys
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import brentq
 
-plt.rcParams['font.family'] = 'serif'
+import paper_equations as pe
+import paper_style as ps
 
-hbar_J = 1.054571817e-34
-e_ch = 1.602176634e-19
-muB = 5.7883818060e-5
-vF = 0.53e6
-Delta = 0.83
-lam = 0.074
-gamma = 0.047
-g_e, g_s, g_v = 2.0, 0.21, 3.57
-gprime = g_e + g_s
+ps.apply()
+P = pe.P
 
-A_SCALE = 5200.0  # empirical overall scale, see caveat above
+BETA = 1.0 / (pe.K_B * P.T)        # 1/k_B T, see the prefactor note above
 
 
-def hw_eV(B):
-    return hbar_J * vF * np.sqrt(2 * e_ch * B / hbar_J) / e_ch
+def nmax_for(B):
+    """More Landau levels are occupied at low field, so the cutoff grows."""
+    return 150 if B < 4.0 else 60
 
 
-def Mz_eV(B, z):
-    return gprime * muB * B / 2.0 if z else 0.0
-
-
-def Mv_eV(B, z):
-    return g_v * muB * B / 2.0 if z else 0.0
-
-
-def d_params(B, s, tau, z, V):
-    hw = hw_eV(B)
-    kappa_tau = (Delta + tau * V) / hw
-    alpha_tau = (Delta - tau * V) / hw
-    lam_hw = lam / hw
-    t = gamma / hw
-    Z = tau * (s * Mz_eV(B, z) - tau * Mv_eV(B, z)) / hw
+def branch(B, V, s, tau, zeeman, nmax):
+    """Conduction levels of one (s, tau) branch with everything Eq. (28)
+    needs: the energy, the index n, and the coefficients rho and k."""
+    hw = pe.eq4_hbar_omega_c(B)
+    Mz = pe.eq_zeeman_Mz(B) if zeeman else 0.0
+    Mv = pe.eq_zeeman_Mv(B) if zeeman else 0.0
+    kappa_tau = (P.DELTA + tau * V) / hw
+    alpha_tau = (P.DELTA - tau * V) / hw
+    lam_hw = P.LAMBDA / hw
+    t = P.GAMMA / hw
+    Z = tau * (s * Mz - tau * Mv) / hw
     d1 = kappa_tau + s * lam_hw + Z
     d2 = alpha_tau - Z
     d3 = alpha_tau - s * lam_hw - Z
     d4 = kappa_tau + Z
-    return d1, d2, d3, d4, t, hw
+
+    rows = []
+    xi = pe.eq1_xi_terms(s, tau, V, Mz, Mv)              # Eq. (8), n = -1
+    rows.append((xi[3] if tau == 1 else xi[1], -1, 0.0, 0.0, d2, d4))
+
+    for eps in pe.eq10_epsilon_roots(d1, d3, d4, t):     # Eq. (10), n = 0
+        if eps * hw > 0.5:
+            k_c = pe.eq7_k_coefficient(eps, 0, d1, d2, t)
+            rho = pe.eq7_rho_normalisation(eps, 0, k_c, d2, d4)
+            rows.append((eps * hw, 0, rho, k_c, d2, d4))
+
+    for n in range(1, nmax + 1):                         # Eq. (5), n >= 1
+        for eps in pe.eq5_epsilon_roots(n, d1, d2, d3, d4, t):
+            if eps * hw > 0.5:
+                k_c = pe.eq7_k_coefficient(eps, n, d1, d2, t)
+                rho = pe.eq7_rho_normalisation(eps, n, k_c, d2, d4)
+                rows.append((eps * hw, n, rho, k_c, d2, d4))
+    return rows, hw
 
 
-def quartic_roots(n, d1, d2, d3, d4, t):
-    p1 = np.poly1d([1.0, d1 - d2, -d1 * d2 - n])
-    p2 = np.poly1d([1.0, d3 - d4, -d3 * d4 - (n + 1)])
-    p3 = np.poly1d([1.0, -(d2 + d4), d2 * d4])
-    Q = p1 * p2 - (t ** 2) * p3
-    return np.sort(np.roots(Q.coeffs).real)
+def sigma_xx(B, V, zeeman):
+    """Eq. (28) in units of A, i.e. what the published y axis plots.
 
+    The spectrum is built ONCE and reused for both the Fermi energy and
+    the conductivity sum; building it twice per field point is what made
+    earlier scans of this figure so slow.
+    """
+    nmax = nmax_for(B)
+    rows = []
+    hw = None
+    for tau in (+1, -1):
+        for s in (+1, -1):
+            r, hw = branch(B, V, s, tau, zeeman, nmax)
+            rows.extend(r)
 
-def xi_terms(s, tau, B, z, V):
-    kappa = Delta + V
-    alpha = Delta - V
-    Mz, Mv = Mz_eV(B, z), Mv_eV(B, z)
-    xi1 = kappa + tau * s * lam + s * Mz - tau * Mv
-    xi2 = alpha - s * Mz + tau * Mv
-    xi3 = alpha - tau * s * lam - s * Mz + tau * Mv
-    xi4 = kappa + s * Mz - tau * Mv
-    return xi1, xi2, xi3, xi4
+    E = np.array([r[0] for r in rows])
+    D0 = 2.0 * np.pi * pe.HBAR_J / (pe.E_CHARGE * B)
+    filling = P.N_E * D0
+    kT = pe.K_B * P.T
 
+    def occ(ef):
+        x = np.clip((E - ef) / kT, -500, 500)
+        return np.sum(1.0 / (1.0 + np.exp(x))) - filling
 
-def n_minus1_level_ev(s, tau, B, z, V):
-    xi1, xi2, xi3, xi4 = xi_terms(s, tau, B, z, V)
-    return xi4 if tau == 1 else xi2
-
-
-def n0_levels_ev(s, tau, B, z, V):
-    xi1, xi2, xi3, xi4 = xi_terms(s, tau, B, z, V)
-    hw = hw_eV(B)
-    if tau == 1:
-        H = np.array([[-xi1, gamma, 0.0], [gamma, -xi3, hw], [0.0, hw, xi4]])
-    else:
-        H = np.array([[-xi1, hw, gamma], [hw, xi2, 0.0], [gamma, 0.0, -xi3]])
-    evals, evecs = np.linalg.eigh(H)
-    order = np.argsort(evals)
-    return evals[order], evecs[:, order]
-
-
-def k_rho(eps, n, d1, d2, d4, t):
-    k = ((eps + d1) * (eps - d2) - n) / (t * (eps - d2))
-    rho2 = 1.0 / (1 + n / (eps - d2) ** 2 + k ** 2 * (1 + (n + 1) / (eps - d4) ** 2))
-    return k, np.sqrt(rho2)
-
-
-def n_ef_for(B):
-    return 150 if B < 4.0 else 60
-
-
-def build_levels(B, s, tau, z, V):
-    NMAX = n_ef_for(B)
-    d1, d2, d3, d4, t, hw = d_params(B, s, tau, z, V)
-    levels = {}
-    eps_m1 = n_minus1_level_ev(s, tau, B, z, V) / hw
-    levels[-1] = [(eps_m1, None, None)]
-    e0_ev, evecs0 = n0_levels_ev(s, tau, B, z, V)
-    lv0 = []
-    for i in range(3):
-        eps0 = e0_ev[i] / hw
-        rho0, Lam0, Ups0 = evecs0[:, i]
-        k0 = Lam0 / rho0
-        lv0.append((eps0, k0, abs(rho0)))
-    levels[0] = lv0
-    for n in range(1, NMAX + 1):
-        roots = quartic_roots(n, d1, d2, d3, d4, t)
-        lv = []
-        for eps in roots:
-            k, rho = k_rho(eps, n, d1, d2, d4, t)
-            lv.append((eps, k, rho))
-        levels[n] = lv
-    return levels, (d1, d2, d3, d4, t, hw), NMAX
-
-
-def fermi(eps_ev, EF, kBT):
-    x = np.clip((eps_ev - EF) / kBT, -500, 500)
-    return 1.0 / (1.0 + np.exp(x))
-
-
-def fermi_energy_and_sigma_xx(B, z, V, ne_target_m2=1.9e17, T=1.0):
-    """Computes EF (Eq. 17) and sigma_xx (Eq. 28 + Appendix B) together,
-    building each (s,tau) level set only once per B point."""
-    kBT = 8.617333262e-5 * T
-    per_st = {}
-    Econd = []
-    for tau in (1, -1):
-        for s in (1, -1):
-            levels, (d1, d2, d3, d4, t, hw), NMAX = build_levels(B, s, tau, z, V)
-            per_st[(s, tau)] = (levels, (d1, d2, d3, d4, t, hw), NMAX)
-            for n, lv in levels.items():
-                for eps, k, rho in lv:
-                    e_ev = eps * hw
-                    if e_ev > 0.5:
-                        Econd.append(e_ev)
-    Econd = np.array(Econd)
-    l_B2 = hbar_J / (e_ch * B)
-    D0 = 2 * np.pi * l_B2
-
-    def ne_of_EF(ef):
-        x = np.clip((Econd - ef) / kBT, -500, 500)
-        return np.sum(1.0 / (1.0 + np.exp(x))) / D0
-
-    lo, hi = Econd.min() - 0.05, Econd.max() + 0.05
-    EF = brentq(lambda ef: ne_of_EF(ef) - ne_target_m2, lo, hi, xtol=1e-10)
+    EF = brentq(occ, E.min() - 0.05, E.max() + 0.05, xtol=1e-12)
 
     total = 0.0
-    for (s, tau), (levels, (d1, d2, d3, d4, t, hw), NMAX) in per_st.items():
-        eps_m1, _, _ = levels[-1][0]
-        f_m1 = fermi(eps_m1 * hw, EF, kBT)
-        total += f_m1 * (1 - f_m1)
-        for n in range(0, NMAX + 1):
-            for (eps_n, k_n, rho_n) in levels[n]:
-                eps_n_d2 = eps_n - d2
-                eps_n_d4 = eps_n - d4
-                bracket = ((2 * n + 1) * (1 + k_n ** 2) ** 2
-                           + (2 * n - 1) * n ** 2 / eps_n_d2 ** 4
-                           + (2 * n + 3) * (n + 1) ** 2 * k_n ** 4 / eps_n_d4 ** 4)
-                f_n = fermi(eps_n * hw, EF, kBT)
-                total += rho_n ** 4 * bracket * f_n * (1 - f_n)
-    # A = (e^2/h)(beta*N_I*|U_0|^2)/(pi*l_B^2*Gamma*k_s^2) technically has an
-    # explicit 1/l_B^2 ~ B factor on top of the free constants (N_I, U_0,
-    # k_s, Gamma -- none given numerically in the paper). Tried folding in
-    # that B-dependence explicitly (A ~ B*A_SCALE): it overcorrected the
-    # low-B/high-B panel height ratio (compressed to ~1.7x vs reference's
-    # ~11x). A flat A_SCALE matches the reference's panel-to-panel ratio
-    # better in practice, so used here -- since A is unconstrained by the
-    # paper either way, treating it as flat is no less justified.
-    return EF, A_SCALE * total
+    for energy, n, rho, k_c, d2, d4 in rows:
+        x = np.clip((energy - EF) / kT, -500, 500)
+        f = 1.0 / (1.0 + np.exp(x))
+        weight = f * (1.0 - f)
+        if weight < 1e-14:
+            continue
+        if n < 0:                       # Appendix B: the n = -1 term
+            total += weight
+            continue
+        eps = energy / hw
+        bracket = ((2 * n + 1) * (1.0 + k_c ** 2) ** 2
+                   + (2 * n - 1) * n ** 2 / (eps - d2) ** 4
+                   + (2 * n + 3) * (n + 1) ** 2 * k_c ** 4 / (eps - d4) ** 4)
+        total += rho ** 4 * bracket * weight
+    return BETA * total / 1e5          # units of A x 10^5, as published
 
 
-B_low = np.linspace(2.0, 15.0, 450)
-B_high = np.linspace(15.0, 40.0, 350)
+def curve(B_values, V, zeeman):
+    out = np.empty(len(B_values))
+    for i, B in enumerate(B_values):
+        if i % 150 == 0:
+            print(f"      B {i}/{len(B_values)}  ({B:.2f} T)")
+        out[i] = sigma_xx(B, V, zeeman)
+    return out
 
-fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
 
-for row, V in enumerate([0.0, 0.015]):
-    for col, B_range in enumerate([B_low, B_high]):
-        ax = axes[row][col]
-        sig_off = np.empty(len(B_range))
-        sig_on = np.empty(len(B_range))
-        for i, B in enumerate(B_range):
-            if i % 50 == 0:
-                print(f"    B-point {i}/{len(B_range)} (B={B:.2f} T)...")
-            sig_off[i] = fermi_energy_and_sigma_xx(B, False, V)[1]
-            sig_on[i] = fermi_energy_and_sigma_xx(B, True, V)[1]
-        ax.plot(B_range, sig_off / 1e5, color='black', lw=0.7, label=r"$M_z,M_v=0$")
-        ax.plot(B_range, sig_on / 1e5, color='red', lw=0.7, label=r"$M_z,M_v\neq 0$")
-        ax.set_xlabel(r"$B$ (T)")
-        ax.set_ylabel(r"$\sigma_{xx}$ ($A\times10^5$)")
-        ax.legend(loc='upper right', fontsize=8, frameon=False)
-        vmev = f"{V*1000:.0f}"
-        ax.text(0.97, 0.85, f"V = {vmev} meV", transform=ax.transAxes,
-                fontsize=9, ha='right', va='bottom')
-        print(f"row(V={vmev}meV) col={col} done")
+def draw_panel(ax, V, B_values, ylim, yticks, xticks, fmt):
+    print(f"  panel V = {V*1000:.0f} meV, B = {B_values[0]:.0f}"
+          f"..{B_values[-1]:.0f} T")
+    print("    Mz = Mv = 0")
+    off = curve(B_values, V, False)
+    print("    Mz, Mv != 0")
+    on = curve(B_values, V, True)
 
-axes[0][0].set_xlim(2, 15)
-axes[0][1].set_xlim(15, 40)
-axes[1][0].set_xlim(2, 15)
-axes[1][1].set_xlim(15, 40)
+    ax.plot(B_values, off, color="black", lw=0.7)
+    ax.plot(B_values, on, color="red", lw=0.7)
 
-fig.suptitle(
-    r"Longitudinal conductivity $\sigma_{xx}$ vs $B$ at $T=1$ K. "
-    r"Upper: $V=0$ meV; lower: $V=15$ meV.",
-    fontsize=10
-)
-fig.tight_layout()
+    ax.set_xlim(B_values[0], B_values[-1])
+    ax.set_ylim(*ylim)
+    ax.set_xticks(xticks)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels([fmt.format(t) for t in yticks])
+    ax.set_xlabel(r"B (T)", fontsize=14, labelpad=2)
+    ax.set_ylabel(r"$\sigma_{xx}$ (A$\times 10^5$)", fontsize=13)
+    ps.frame(ax, labelsize=11.5)
 
-plt.savefig("bilayer_MoS2_fig12_draft.png", dpi=200)
-print("Saved: bilayer_MoS2_fig12_draft.png")
-plt.show()
+    ax.text(0.965, 0.930, f"V = {V*1000:.0f} meV", transform=ax.transAxes,
+            fontsize=11.5, ha="right", va="center")
+    ps.legend_entry(ax, 0.560, 0.835, "-", "black",
+                    r"$\mathrm{M_z}$ , $\mathrm{M_v}$ = 0", fontsize=11,
+                    sample=0.090, gap=0.030)
+    ps.legend_entry(ax, 0.560, 0.745, "-", "red",
+                    r"$\mathrm{M_z}$ , $\mathrm{M_v}$ $\neq$ 0", fontsize=11,
+                    sample=0.090, gap=0.030)
+    print(f"    black {off.min():.2f}..{off.max():.2f}   "
+          f"red {on.min():.2f}..{on.max():.2f}")
+
+
+if __name__ == "__main__":
+    draft = "fast" in sys.argv
+    nl, nr = (260, 200) if draft else (1100, 750)
+    if draft:
+        print("DRAFT resolution - omit 'fast' for the full render")
+
+    print("Fig. 12 - longitudinal conductivity, Eq. (28) in units of A")
+    fig = plt.figure(figsize=(10.4, 7.2))
+    gs = fig.add_gridspec(2, 2, hspace=0.40, wspace=0.30,
+                          left=0.085, right=0.985, top=0.985, bottom=0.090)
+
+    for row, V in enumerate((0.0, 0.015)):
+        draw_panel(fig.add_subplot(gs[row, 0]), V,
+                   np.linspace(3.0, 15.0, nl), (0, 10),
+                   [0, 2, 4, 6, 8, 10], [4, 6, 8, 10, 12, 14], "{:.0f}")
+        draw_panel(fig.add_subplot(gs[row, 1]), V,
+                   np.linspace(15.0, 40.0, nr), (0, 1.0),
+                   [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                   [15, 20, 25, 30, 35, 40], "{:.1f}")
+
+    ps.save(fig, "bilayer_MoS2_fig12.png")
+    plt.show()

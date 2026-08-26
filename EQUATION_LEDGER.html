@@ -1,0 +1,656 @@
+<title>Bilayer MoS₂ Equation Ledger</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#FBFBFC; --surface:#FFFFFF; --raise:#F3F5F7;
+    --ink:#14171C; --body:#3A3F4A; --muted:#626B7A; --faint:#8B93A1;
+    --rule:#E1E4EA; --rule-firm:#C9CEd8;
+    --pdf:#0F5F7A; --code:#0F7A6B; --out:#7A4E10; --warn:#B4532B;
+    --chip:#EDF1F3;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#101215; --surface:#171A1F; --raise:#1E222A;
+      --ink:#E8EBF0; --body:#BFC6D2; --muted:#8C95A5; --faint:#6B7484;
+      --rule:#252932; --rule-firm:#39404C;
+      --pdf:#5FC2DE; --code:#34C4AC; --out:#D9A65B; --warn:#E08A5F;
+      --chip:#22272F;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#101215; --surface:#171A1F; --raise:#1E222A;
+    --ink:#E8EBF0; --body:#BFC6D2; --muted:#8C95A5; --faint:#6B7484;
+    --rule:#252932; --rule-firm:#39404C;
+    --pdf:#5FC2DE; --code:#34C4AC; --out:#D9A65B; --warn:#E08A5F;
+    --chip:#22272F;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--ground); color:var(--body);
+    font-family:"IBM Plex Sans",-apple-system,"Segoe UI",system-ui,sans-serif;
+    font-size:16px; line-height:1.6; margin:0; padding:0 22px 90px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:900px; margin:0 auto;}
+
+  h1{font-size:2.1rem; line-height:1.15; margin:0 0 10px; color:var(--ink);
+     font-weight:600; letter-spacing:-.015em; text-wrap:balance;}
+  h2{font-size:1.25rem; margin:0; color:var(--ink); font-weight:600;}
+  p{margin:0 0 14px;}
+  a{color:var(--code);}
+
+  header{padding:56px 0 26px; border-bottom:1px solid var(--rule); margin-bottom:26px;}
+  .lede{font-size:1.05rem; color:var(--muted); max-width:64ch; margin:0 0 20px;}
+  .eyebrow{font-size:.7rem; letter-spacing:.16em; text-transform:uppercase;
+           color:var(--faint); font-weight:600; margin:0 0 12px;}
+
+  /* how to read */
+  .key{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+       gap:12px; margin:0 0 8px;}
+  .key div{background:var(--surface); border:1px solid var(--rule);
+           border-radius:3px; padding:11px 13px; font-size:.87rem;}
+  .key b{display:block; font-size:.68rem; letter-spacing:.13em;
+         text-transform:uppercase; margin-bottom:4px; font-weight:600;}
+  .k1 b{color:var(--pdf);} .k2 b{color:var(--code);} .k3 b{color:var(--out);}
+
+  /* jump index */
+  nav{display:flex; flex-wrap:wrap; gap:6px; margin:22px 0 4px;
+      padding-bottom:22px; border-bottom:1px solid var(--rule);}
+  nav a{display:inline-block; background:var(--chip); border:1px solid var(--rule);
+        color:var(--body); text-decoration:none; border-radius:3px;
+        font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.8rem;
+        padding:4px 9px; font-variant-numeric:tabular-nums;}
+  nav a:hover,nav a:focus-visible{border-color:var(--code); color:var(--code);}
+
+  /* figure block */
+  .fig{border-top:1px solid var(--rule-firm); padding:26px 0 4px; scroll-margin-top:14px;}
+  .fig-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:4px;}
+  .num{font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:500;
+       color:var(--surface); background:var(--ink); padding:3px 8px; border-radius:2px;
+       font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .sub{color:var(--muted); font-size:.92rem; margin:2px 0 16px;}
+
+  .band{display:grid; grid-template-columns:76px 1fr; gap:0 14px;
+        padding:12px 0; border-top:1px dashed var(--rule);}
+  .band:first-of-type{border-top:none;}
+  .tag{font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+       font-weight:600; padding-top:3px;}
+  .t-pdf{color:var(--pdf);} .t-code{color:var(--code);} .t-out{color:var(--out);}
+  .band-body{min-width:0;}
+
+  .loc{font-family:"IBM Plex Mono",monospace; font-size:.82rem;
+       color:var(--ink); margin-bottom:7px; font-variant-numeric:tabular-nums;}
+  .eq{font-family:"IBM Plex Serif",Georgia,serif; font-size:.95rem;
+      background:var(--raise); border-left:2px solid var(--pdf);
+      padding:9px 13px; border-radius:0 2px 2px 0; overflow-x:auto;
+      color:var(--ink); white-space:pre-wrap; margin:0 0 8px;}
+  .eq:last-child{margin-bottom:0;}
+  pre{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.79rem;
+      line-height:1.55; background:var(--raise); border:1px solid var(--rule);
+      border-radius:3px; padding:10px 12px; overflow-x:auto; margin:0 0 8px;
+      color:var(--ink);}
+  pre:last-child{margin-bottom:0;}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.86em;
+       background:var(--chip); padding:.08em .34em; border-radius:2px; color:var(--ink);}
+  .band-body p{font-size:.92rem; margin:0 0 7px;}
+  .band-body p:last-child{margin:0;}
+  .note{color:var(--warn); font-size:.87rem;}
+
+  table{width:100%; border-collapse:collapse; font-size:.86rem;
+        font-variant-numeric:tabular-nums;}
+  .tscroll{overflow-x:auto;}
+  th,td{text-align:left; padding:6px 10px 6px 0; border-bottom:1px solid var(--rule);
+        vertical-align:top;}
+  th{font-size:.66rem; letter-spacing:.11em; text-transform:uppercase;
+     color:var(--faint); font-weight:600;}
+  td.m{font-family:"IBM Plex Mono",monospace; white-space:nowrap;}
+  .ok{color:var(--code); font-weight:500;}
+
+  footer{border-top:1px solid var(--rule-firm); margin-top:36px; padding-top:20px;
+         color:var(--faint); font-size:.85rem;}
+  @media (max-width:640px){
+    body{padding:0 15px 60px;}
+    h1{font-size:1.7rem;}
+    .band{grid-template-columns:1fr; gap:6px;}
+    .tag{padding-top:0;}
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Verification reference</p>
+  <h1>Bilayer MoS₂ Equation Ledger</h1>
+  <p class="lede">Every figure traced from the paper to the code: which equation, where it is printed in the PDF, which file and line implements it, and what you get when you run it.</p>
+  <div class="key">
+    <div class="k1"><b>PDF</b>Where the equation is printed, and its exact text</div>
+    <div class="k2"><b>Code</b>The file and line numbers that implement it</div>
+    <div class="k3"><b>Output</b>What appears when you run the file</div>
+  </div>
+</header>
+
+<nav>
+  <a href="#f1">Fig 1</a><a href="#f2">Fig 2</a><a href="#f3">Fig 3</a><a href="#f4">Fig 4</a>
+  <a href="#f5">Fig 5</a><a href="#f6">Fig 6</a><a href="#f7">Fig 7</a><a href="#f8">Fig 8</a>
+  <a href="#f9">Fig 9</a><a href="#f10">Fig 10</a><a href="#f11">Fig 11</a><a href="#f12">Fig 12</a>
+  <a href="#f13">Fig 13</a><a href="#f14">Fig 14</a>
+</nav>
+
+<!-- ============ FIGURE 1 ============ -->
+<section class="fig" id="f1">
+  <div class="fig-head"><span class="num">1 / 14</span><h2>Band structure, no magnetic field</h2></div>
+  <p class="sub">Four panels: two valleys × two electric-field values.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (2) — page 2, left column, 78% down</div>
+      <div class="eq">E^{s,τ}_μ(k) = ħ v_F ε^{s,τ}_μ(k)</div>
+      <div class="loc">Eq. (3) — page 2, left column, 91% down</div>
+      <div class="eq">[(ε − α′)(ε + κ′ − τsλ′) − k²]
+ × [(ε − κ′)(ε + α′ + τsλ′) − k²]
+ − γ′²(ε − α′)(ε − κ′) = 0</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — line 233 (Eq. 2), lines 279–288 (Eq. 3)</div>
+<pre>233:  return HBAR_EVS * vF * np.asarray(epsilon)        # E = ħ·v_F·ε
+
+280:  b1 = polyadd(polymul([1,-alpha_p],[1,kappa_p-L]), [-k**2])   # 1st bracket
+283:  b2 = polyadd(polymul([1,-kappa_p],[1,alpha_p+L]), [-k**2])   # 2nd bracket
+286:  b3 = polymul([1,-alpha_p],[1,-kappa_p])                      # last part
+288:  return polyadd(polymul(b1,b2), -(gam_p**2)*b3)               # b1×b2 − γ′²×b3</pre>
+      <div class="loc">1.py — line 80 calls both</div>
+      <p>Eq. (3) is a fourth-degree equation, so it always has <strong>four answers</strong> — those are the four curves. Eq. (2) converts them into energy in eV.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 1.py</code> → <code>bilayer_MoS2_fig1.png</code></p>
+      <p>Four panels, eight curves each (four bands × two spins). All four panels use the <em>same</em> two equations — only τ (valley) and V (field) change.</p>
+      <div class="tscroll"><table>
+        <thead><tr><th>Paper states</th><th>Paper</th><th>Our output</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>gap 2Δ − √(λ²+γ²)</td><td class="m">1.57234 eV</td><td class="m">1.57234 eV</td><td class="ok">exact</td></tr>
+          <tr><td>valence split 2√(λ²+γ²)</td><td class="m">0.17533 eV</td><td class="m">0.17533 eV</td><td class="ok">exact</td></tr>
+          <tr><td>conduction split 2V</td><td class="m">0.03000 eV</td><td class="m">0.03000 eV</td><td class="ok">exact</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 2 ============ -->
+<section class="fig" id="f2">
+  <div class="fig-head"><span class="num">2 / 14</span><h2>Band structure vs electric field</h2></div>
+  <p class="sub">The same bands drawn at four field values, stacked in 3-D.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (2) — page 2, 78% down &nbsp;·&nbsp; Eq. (3) — page 2, 91% down</div>
+      <p>Identical equations to Figure 1 — this figure just repeats the calculation at V = 0, 5, 10 and 15 meV.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — line 233, lines 279–288</div>
+      <div class="loc">2.py — lines 82–83 call them</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 2.py</code> → <code>bilayer_MoS2_fig2.png</code>, plus <code>_conduction.png</code> and <code>_valence.png</code></p>
+      <p>Two 3-D panels, four field slices each, with the blue guide lines that mark each slice's band edge.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 3 ============ -->
+<section class="fig" id="f3">
+  <div class="fig-head"><span class="num">3 / 14</span><h2>Landau levels vs magnetic field, V = 0</h2></div>
+  <p class="sub">Conduction and valence fans, with the Fermi energy drawn in magenta.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (4) — page 3, left column, 79% down</div>
+      <div class="eq">E^{s,τ}_{n,μ} = ħ ω_c ε^{s,τ}_{n,μ}     with  ω_c = v_F √(2eB/ħ)</div>
+      <div class="loc">Eq. (5) — page 3, left column, 91% down</div>
+      <div class="eq">[(ε + d₁)(ε − d₂) − n]
+ × [(ε + d₃)(ε − d₄) − (n+1)]
+ − t²(ε − d₂)(ε − d₄) = 0</div>
+      <div class="loc">Eq. (8) — page 4, 33% down &nbsp;·&nbsp; Eq. (10) — page 4, 56% down</div>
+      <div class="eq">H^+_{n=−1} = ξ₄^+ ,   H^−_{n=−1} = ξ₂^−            (8)
+
+(ε + d₁)[(ε + d₃)(ε − d₄) − 1] − t²(ε − d₄) = 0    (10)</div>
+      <div class="loc">Eq. (17) — page 6, right column, 49% down</div>
+      <div class="eq">n_e = (g_{s/v} / D₀) Σ_{n,τ,s,μ} f(E^{s,τ}_{n,μ})</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — Eq. 4: line 327 · Eq. 5: lines 379–397 · Eq. 8: line 480 · Eq. 10: lines 535–558</div>
+      <div class="loc">landau_levels.py — Eq. 17: line 155 · fan builder: line 124</div>
+      <div class="loc">3.py — line 68 (the fan), line 106 (the Fermi energy)</div>
+      <p>Eq. (5) is the magnet version of Eq. (3): also fourth-degree, so four answers per Landau level. Eqs. (8) and (10) cover the two lowest levels, which are special cases. Eq. (17) fills the levels from the bottom to find where the electrons stop.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 3.py</code> → <code>bilayer_MoS2_fig3.png</code></p>
+      <p>Two panels. Left: conduction fan, 8.22–8.56 (10⁻¹ eV). Right: valence fan, −9.56 to −7.29. Colour = valley + layer, line style = spin, magenta = E_F.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 4 ============ -->
+<section class="fig" id="f4">
+  <div class="fig-head"><span class="num">4 / 14</span><h2>Landau level spectrum at B = 30 T</h2></div>
+  <p class="sub">A level diagram, not a plot — four boxes of labelled energy levels.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (5) — page 3, 91% · Eq. (4) — page 3, 79% · Eq. (8) — page 4, 33% · Eq. (10) — page 4, 56%</div>
+      <p>Same four equations as Figure 3, evaluated at a single field instead of a sweep.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — lines 327, 379–397, 480, 535–558</div>
+      <div class="loc">4.py — line 188 builds the level table</div>
+      <p>The energies come from the equations; the <em>label positions</em> are transcribed from the published figure, because the paper places them by hand.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 4.py</code> → <code>bilayer_MoS2_fig4.png</code></p>
+      <p>Four boxes in a 2×2. Top row conduction, bottom valence; left column Mz = Mv = 0, right column Mz, Mv ≠ 0. Each level tagged (n, μ, s).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 5 ============ -->
+<section class="fig" id="f5">
+  <div class="fig-head"><span class="num">5 / 14</span><h2>Landau levels vs B, V = 15 meV</h2></div>
+  <p class="sub">The paper's caption: "As in Fig. 3 but for V = 15 meV."</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eqs. (4), (5), (8), (10), (17) — same locations as Figure 3</div>
+      <p>Identical equations. Only V changes, from 0 to 15 meV.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — lines 327, 379–397, 480, 535–558 · landau_levels.py — line 155</div>
+      <div class="loc">5.py — line 78 (fan), line 117 (Fermi energy); <code>V = 0.015</code> at line 37</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 5.py</code> → <code>bilayer_MoS2_fig5.png</code></p>
+      <p>Two panels. Conduction 8.0–8.6, valence −9.56 to −7.29. The fans now start from two separated levels (8.15 and 8.45) because the field splits the layers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 6 ============ -->
+<section class="fig" id="f6">
+  <div class="fig-head"><span class="num">6 / 14</span><h2>Conduction Landau levels, V = 0</h2></div>
+  <p class="sub">Zeeman terms off (left) versus on (right).</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eqs. (4), (5), (8), (10), (17) — same locations as Figure 3</div>
+      <p>With Mz = Mv = 0 the two valleys are exactly equal, which is what the "=" signs in the paper's own legend record.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — lines 327, 379–397, 480, 535–558 · landau_levels.py — line 155</div>
+      <div class="loc">6.py — line 69 (fan), line 94 (Fermi energy)</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 6.py</code> → <code>bilayer_MoS2_fig6.png</code></p>
+      <p>Two panels, both conduction band. Left 8.285–8.555 with two colours; right 8.222–8.556 with four colours. Magenta E_F on both.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 7 ============ -->
+<section class="fig" id="f7">
+  <div class="fig-head"><span class="num">7 / 14</span><h2>Conduction Landau levels, V = 15 meV</h2></div>
+  <p class="sub">Figure 6 repeated with the electric field switched on.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eqs. (4), (5), (8), (10), (17) — same locations as Figure 3</div>
+      <p class="note">Caption note: the printed caption says "As in Fig. 5", but the layout drawn is Figure 6's. Reproduced from what is drawn.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">paper_equations.py — lines 327, 379–397, 480, 535–558 · landau_levels.py — line 155</div>
+      <div class="loc">7.py — line 69 (fan), line 94 (Fermi energy)</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 7.py</code> → <code>bilayer_MoS2_fig7.png</code></p>
+      <p>Two panels, 8.1–8.605 and 8.0–8.605. Both fans rise from the flat levels at 8.15 and 8.45 — the 2V splitting from Figure 1 seen at B → 0.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 8 ============ -->
+<section class="fig" id="f8">
+  <div class="fig-head"><span class="num">8 / 14</span><h2>Fermi energy vs magnetic field</h2></div>
+  <p class="sub">Four panels: two field energies × two ranges of B.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (17) — page 6, right column, 49% down</div>
+      <div class="eq">n_e = (g_{s/v} / D₀) Σ_{n,τ,s,μ} f(E^{s,τ}_{n,μ})
+
+with f(E) = 1 / {1 + exp[β(E − E_F)]},  β = 1/k_B T,  D₀ = 2π l_B²</div>
+      <p>Plus Eqs. (4), (5), (8), (10) for the levels being summed over.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">landau_levels.py — line 155 (Eq. 17)</div>
+      <div class="loc">8.py — line 65</div>
+      <p>The number of electrons is fixed. Fill the levels from the bottom up; the height where they run out is E_F. As B rises the levels spread, so E_F saws up and down.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 8.py</code> → <code>bilayer_MoS2_fig8.png</code></p>
+      <p>Four panels in a 2×2. Black = Zeeman off, red = Zeeman on. Tooth positions and heights match the published figure without any tuning.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 9 ============ -->
+<section class="fig" id="f9">
+  <div class="fig-head"><span class="num">9 / 14</span><h2>Density of states at the Fermi energy</h2></div>
+  <p class="sub">The one figure that does not fully reproduce — see the note below.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (17) — page 6, 49% down · plus the Fig. 9 caption on page 7</div>
+      <div class="eq">D_c = g_{s/v} / D₀ · Γ √(2π),   with   Γ = 0.1 √B  meV
+
+D(E)/D_c = Σ_{n,μ,s,τ} exp[ −(E − E_{n,μ})² / (2Γ²) ]   at E = E_F</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">landau_levels.py — line 212 (the broadened sum) · line 155 (Eq. 17)</div>
+      <div class="loc">fig9_common.py — the width and normalisation constants, with the full record</div>
+      <div class="loc">9.py — assembles all four panels · 9_1.py … 9_4.py — one panel each, for faster testing</div>
+      <p>Each level is drawn as a blurry blob of width Γ. The graph counts how many blobs sit at the Fermi energy: blobs apart → big wiggles, blobs overlapping → flat line.</p>
+      <p class="note"><strong>Known issue.</strong> The paper's own Γ = 0.1√B does not reproduce the paper's own figure — its dips stop at 0.53 instead of reaching zero. And our wiggles run the wrong way round: small at high field where the paper's are large. The baseline height is Γ ÷ level spacing, and the spacing grows like B, so Γ ∝ √B gives growing wiggles on a sloping baseline while Γ ∝ B gives a flat baseline with constant wiggles. The published panel has both. Twenty-five width settings, two divisors and the level cutoff were all tested; the trend never reverses. Documented rather than fitted around.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 9.py</code> → <code>bilayer_MoS2_fig9.png</code> (all four panels)</p>
+      <p><code>python 9.py fast</code> — quick draft &nbsp;·&nbsp; <code>python 9_1.py fast</code> — one panel in about a minute</p>
+      <p>Correct: the flat baseline, the main packet near 5 T reaching 1.6, and all axes and labels. Not correct: below 4 T the curves swing more than published, above 9 T less.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 10 ============ -->
+<section class="fig" id="f10">
+  <div class="fig-head"><span class="num">10 / 14</span><h2>Hall conductivity, V = 0</h2></div>
+  <p class="sub">The quantised staircase, with an inset in each panel.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (22) — page 8, right column, 67% down</div>
+      <div class="eq">σ_yx = (e²/2h) Σ_{s,τ,μ,μ′} Σ_n
+   [ η (f_{n,μ} − f_{n+1,μ′}) / (ε_{n,μ} − ε_{n+1,μ′})²
+   − ζ (f_{n,μ} − f_{n−1,μ′}) / (ε_{n,μ} − ε_{n−1,μ′})² ]</div>
+      <div class="loc">Eq. (23) — page 8, 74% down · Eq. (24) — page 8, 77% down (the η and ζ terms)</div>
+      <div class="loc">Eq. (17) — page 6, 49% down (the Fermi energy)</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">hall_common.py — line 115 (σ_xy), line 77 (the levels)</div>
+      <div class="loc">hall_panels.py — the layout, shared with Figure 11</div>
+      <div class="loc">10.py — the driver: V = 0 and the inset limits</div>
+      <p>Eq. (22) is taken in its T → 0 limit, where it becomes the number of levels below the Fermi energy — an integer, so it can only move in jumps. That is the staircase. The Fermi energy itself uses broadened levels, which is what separates the three inset curves.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 10.py</code> → <code>bilayer_MoS2_fig10.png</code></p>
+      <div class="tscroll"><table>
+        <thead><tr><th>Check</th><th>Paper</th><th>Ours</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>σ_xy at B = 13 T</td><td class="m">60</td><td class="m">60</td><td class="ok">exact</td></tr>
+          <tr><td>σ_xy at B = 40 T</td><td class="m">20</td><td class="m">20</td><td class="ok">exact</td></tr>
+          <tr><td>step height</td><td class="m">2 e²/h</td><td class="m">2 e²/h</td><td class="ok">exact</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 11 ============ -->
+<section class="fig" id="f11">
+  <div class="fig-head"><span class="num">11 / 14</span><h2>Hall conductivity, V = 15 meV</h2></div>
+  <p class="sub">Figure 10 repeated with the electric field on.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eqs. (22), (23), (24) — page 8 · Eq. (17) — page 6</div>
+      <p>Same equations as Figure 10. The paper notes the plateau sequence changes with the field: 0, 4, 8, 12 at V = 0 versus 0, 2, 4, 6 at V = 15 meV.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">hall_common.py — line 115 · hall_panels.py — the layout</div>
+      <div class="loc">11.py — the driver: <code>V = 0.015</code> and its inset limits</div>
+      <p>Figures 10 and 11 share one implementation, so a change to the physics applies to both automatically.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 11.py</code> → <code>bilayer_MoS2_fig11.png</code></p>
+      <p>Two panels, 120 → 60 and 60 → 20 (e²/h), plus insets at 7.5–9.5 T and 20–27 T. The right-hand inset separates the Zeeman terms into three curves.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 12 ============ -->
+<section class="fig" id="f12">
+  <div class="fig-head"><span class="num">12 / 14</span><h2>Longitudinal conductivity</h2></div>
+  <p class="sub">The SdH oscillations, four panels.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (28) — page 10, right column, 74% down</div>
+      <div class="eq">σ_xx = A Σ_{n,μ,s,τ} (ϱ^{s,τ}_{n,μ})⁴
+   [ (2n+1)(1 + (k^{s,τ}_{n,μ})²)²
+     + (2n−1) n² / ε⁴_{n,d₂}
+     + (2n+3)(n+1)² (k^{s,τ}_{n,μ})⁴ / ε⁴_{n,d₄} ]
+   f(E^{s,τ}_{n,μ}) [1 − f(E^{s,τ}_{n,μ})]
+
+where A = (e²/h)(β N_I |U₀|² / π l_B² k_s²)</div>
+      <div class="loc">Eqs. (6), (7) — page 3, 56% and 71% down (the ϱ and k coefficients)</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">sigma_xx_common.py — line 144 (the Eq. 28 sum), line 117 (levels + Fermi energy)</div>
+      <div class="loc">paper_equations.py — Eq. 7: lines 429, 441 · Eq. 6: line 456</div>
+      <div class="loc">12.py — lines 118 and 167</div>
+      <p><strong>No fitted constant.</strong> A contains three quantities the paper never gives numerically, but the published y-axis reads "σ_xx (A×10⁵)" — the figure is plotted <em>in units of A</em>, so they cancel. Only β = 1/k_BT is carried explicitly, exactly as the paper's own text uses it.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 12.py</code> → <code>bilayer_MoS2_fig12.png</code> &nbsp;·&nbsp; <code>python 12.py fast</code> for a draft</p>
+      <div class="tscroll"><table>
+        <thead><tr><th>Panel</th><th>Ours</th><th>Paper</th></tr></thead>
+        <tbody>
+          <tr><td>V = 0, B 3–15</td><td class="m">0.02 – 9.50</td><td class="m">~0 – 9.5</td></tr>
+          <tr><td>V = 0, B 15–40</td><td class="m">0.00 – 0.83</td><td class="m">~0 – 0.83</td></tr>
+          <tr><td>V = 15, B 3–15</td><td class="m">0.01 – 9.98</td><td class="m">~0 – 10</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 13 ============ -->
+<section class="fig" id="f13">
+  <div class="fig-head"><span class="num">13 / 14</span><h2>Spin and valley polarisation</h2></div>
+  <p class="sub">One panel: p_s solid black, p_v dashed red.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Eq. (29) — page 11, left column, 45% down</div>
+      <div class="eq">P_s = [ (σ^{K,↑}_xx + σ^{K′,↓}_xx) − (σ^{K,↓}_xx + σ^{K′,↑}_xx) ]
+    / [ (σ^{K,↑}_xx + σ^{K′,↓}_xx) + (σ^{K,↓}_xx + σ^{K′,↑}_xx) ]</div>
+      <div class="loc">Eq. (30) — page 11, left column, 51% down</div>
+      <div class="eq">P_v = [ (σ^{K,↑}_xx + σ^{K,↓}_xx) − (σ^{K′,↑}_xx + σ^{K′,↓}_xx) ]
+    / [ (σ^{K,↑}_xx + σ^{K,↓}_xx) + (σ^{K′,↑}_xx + σ^{K′,↓}_xx) ]</div>
+      <p class="note">Caption note: the caption says "same as in Fig. 11" (V = 15 meV) while the body text says "V = 0 meV". The body text describes the plotted curves directly, so V = 0 is used; one line changes it.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">sigma_xx_common.py — line 173 (Eqs. 29 and 30), line 144 (each branch's Eq. 28 sum)</div>
+      <div class="loc">13.py — line 65</div>
+      <p><strong>No fitted constant.</strong> Both are ratios of the same four sums, so the unknown prefactor A cancels exactly.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 13.py</code> → <code>bilayer_MoS2_fig13.png</code></p>
+      <p>Black p_s and dashed red p_v from 1 to 30 T, plus a flat blue line at zero — with the Zeeman terms off both polarisations vanish identically. The paper's claims verify: 100% valley polarisation above 13 T, ~90% spin polarisation above 20 T (ours reaches 0.99).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE 14 ============ -->
+<section class="fig" id="f14">
+  <div class="fig-head"><span class="num">14 / 14</span><h2>Longitudinal and Hall resistivities</h2></div>
+  <p class="sub">Four panels: ρ_xx black, ρ_xy red.</p>
+
+  <div class="band">
+    <div class="tag t-pdf">PDF</div>
+    <div class="band-body">
+      <div class="loc">Page 11, right column — the relations, stated in the text rather than numbered</div>
+      <div class="eq">ρ_xx = σ_xx / S ,   ρ_xy = σ_xy / S
+
+S = σ_xx σ_yy − σ_xy σ_yx ≈ n_e² e² / B²</div>
+      <div class="loc">Eq. (28) — page 10, 74% down (σ_xx) · Eq. (22) — page 8, 67% down (σ_xy)</div>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-code">CODE</div>
+    <div class="band-body">
+      <div class="loc">14.py — line 77 (the relations), lines 84–85 (calls σ_xx and σ_xy)</div>
+      <div class="loc">sigma_xx_common.py — line 165 · hall_common.py — line 115</div>
+      <p class="note"><strong>The caption's ρ₀ cannot serve both curves.</strong> It defines ρ₀ = A⁻¹ × 10⁻³⁵, but σ_xy carries no factor of A while σ_xx carries one — so ρ_xy/ρ₀ is linear in A and ρ_xx/ρ₀ is quadratic. Fitting A so ρ_xy at 2 T matches the published 0.0022 gives A = 3.3×10⁻⁴⁰, and that same A predicts a ρ_xx peak of 1.5×10⁻³⁴ against the published 0.005 — out by 32 orders of magnitude. Each curve therefore gets its own display constant, both anchored to a published value.</p>
+    </div>
+  </div>
+
+  <div class="band">
+    <div class="tag t-out">OUTPUT</div>
+    <div class="band-body">
+      <p><code>python 14.py</code> → <code>bilayer_MoS2_fig14.png</code> &nbsp;·&nbsp; <code>python 14.py fast</code> for a draft</p>
+      <p>Only two constants were anchored, from two published numbers — the other six panel values follow on their own:</p>
+      <div class="tscroll"><table>
+        <thead><tr><th>Panel</th><th>ρ_xx ours</th><th>ρ_xx paper</th></tr></thead>
+        <tbody>
+          <tr><td>V = 0, B 2–15</td><td class="m">0.0050 <span style="color:var(--faint)">(anchor)</span></td><td class="m">~0.005</td></tr>
+          <tr><td>V = 0, B 15–40</td><td class="m">0.0115</td><td class="m">~0.012</td></tr>
+          <tr><td>V = 15, B 2–15</td><td class="m">0.0076</td><td class="m">~0.0075</td></tr>
+          <tr><td>V = 15, B 15–40</td><td class="m">0.0172</td><td class="m">~0.017</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Source: M. Zubair, M. Tahir, P. Vasilopoulos, K. Sabeeh, <em>Quantum magnetotransport in bilayer MoS₂: Influence of perpendicular electric field</em>, Physical Review B <strong>96</strong>, 045405 (2017). Page and column positions refer to that PDF.</p>
+  <p>Equations are transcribed verbatim in <code>paper_equations.py</code>, each with its number and page. Running <code>python paper_equations.py</code> executes 33 self-checks that verify the code against the paper's own claims — that Eq. (3) reproduces Eq. (1), that Eq. (10) reproduces Eq. (9), and that the eigenvector coefficients sum to one. All pass.</p>
+</footer>
+
+</div>

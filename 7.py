@@ -1,256 +1,169 @@
-# Bilayer MoS2 Fig. 7 -- "As in Fig. 6 but for V = 15 meV" (the printed
-# caption literally says "As in Fig. 5", which is a typo in the paper --
-# the actual panel layout/content mirrors Fig. 6: conduction-band LLs vs
-# B, left Mz=Mv=0, right Mz,Mv != 0, magenta EF curve -- confirmed by
-# reading the rendered PDF page image directly).
+# =============================================================================
+# FIGURE 7  of  Zubair, Tahir, Vasilopoulos & Sabeeh,
+# Phys. Rev. B 96, 045405 (2017).
 #
-# Right panel reuses Fig. 5's (Codes/4.py) already-verified conduction-band
-# curves verbatim (same V=15meV, same Zeeman-on physics). Left panel reuses
-# Fig. 6's (Codes/5.py) K-valley-only approach: pixel-verified against the
-# reference that only tau=+1 is drawn (red '+-' starts at alpha=Delta-V,
-# black '++' starts at kappa=Delta+V) -- the paper's "=" legend labels
-# annotate a valley/level-shift symmetry proven in the text, not a second
-# set of curves to draw.
+# Paper's Fig. 7 caption, verbatim:
+#   "As in Fig. 5 but for V = 15 meV."
+#
+# NOTE ON THE CAPTION.  It points at Fig. 5, but Fig. 5 is already the
+# V = 15 meV version of Fig. 3 and shows the conduction AND valence bands.
+# Fig. 7's actual content - conduction band only, left panel Mz = Mv = 0,
+# right panel Mz, Mv != 0, magenta E_F on both - is the layout of Fig. 6.
+# So the printed cross-reference appears to be a slip for "As in Fig. 6".
+# The figure is reproduced from what is drawn, not from the cross-reference.
+#
+# EQUATIONS USED (all in paper_equations.py / landau_levels.py):
+#   Eq. (5)  p.3  - quartic for the n >= 1 Landau levels
+#   Eq. (4)  p.3  - E = hbar*omega_c*epsilon
+#   Eq. (8)  p.4  - the single n = -1 level
+#   Eq. (10) p.4  - cubic for the three n = 0 levels
+#   Eq. (17) p.6  - Fermi energy at fixed electron density (magenta curve)
+#
+# THE LEFT-PANEL EQUALITIES DIFFER FROM FIG. 6's
+#   Fig. 6 is at V = 0, where the valleys are degenerate spin by spin:
+#       E^{up,+}_{n,mu} = E^{up,-}_{n,mu}      (same spin)
+#   Fig. 7 is at V = 15 meV, where that is broken but a weaker symmetry
+#   survives, pairing OPPOSITE spins across the valleys:
+#       E^{up,+}_{n,mu} = E^{down,-}_{n,mu}    (opposite spin)
+#   Both are transcribed from the published legends.
+#
+# LAYOUT read off the published panels:
+#   left  : y 8.100 .. 8.605, ticks 8.1 .. 8.6 step 0.1 ; x 0..40
+#   right : y 8.000 .. 8.605, ticks 8.0 .. 8.6 step 0.1 ; x 0..40
+#   Both fans start from two flat levels: mu = ++ at 8.45 and mu = +- at
+#   8.15, which is the 2V conduction splitting of Fig. 1 seen at B -> 0.
+# =============================================================================
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.rcParams['font.family'] = 'serif'
+import paper_style as ps
+import landau_levels as ll
 
-hbar_J = 1.054571817e-34     # J*s
-e_ch = 1.602176634e-19       # C
-muB = 5.7883818060e-5        # eV/T
+ps.apply()
 
-vF = 0.53e6                  # m/s
-Delta = 0.83                 # eV
-lam = 0.074                  # eV
-gamma = 0.047                # eV
-V = 0.015                    # eV -- Fig. 7 is V = 15 meV
-
-g_e, g_s, g_v = 2.0, 0.21, 3.57
-gprime = g_e + g_s
-
+B_GRID = np.linspace(0.4, 40.0, 240)
 N_MAX = 24
-N_EF = 150
-B_grid = np.linspace(0.4, 40, 240)
+V = 0.015          # Fig. 7 is V = 15 meV
+
+COLOR = {+1: {"+-": "red",  "++": "black"},
+         -1: {"+-": "blue", "++": "green"}}
+
+LEFT_YLIM = (8.100, 8.605)
+RIGHT_YLIM = (8.000, 8.605)
 
 
-def omega_c(B):
-    return vF * np.sqrt(2 * e_ch * B / hbar_J)
+def yf(value, ylim):
+    """Axes fraction of a data value, so legend rows sit at the energies
+    they occupy in the published figure."""
+    return (value - ylim[0]) / (ylim[1] - ylim[0])
 
 
-def hw_eV(B):
-    return hbar_J * omega_c(B) / e_ch
+def draw_fan(ax, order, zeeman):
+    """Draw the conduction fan in an explicit (valley, mu) sequence; the
+    LAST entry ends up on top where the curves converge near B = 0."""
+    mus = sorted({mu for _, mu in order})
+    cache = {}
+    for tau in sorted({t for t, _ in order}):
+        for s in (+1, -1):
+            print(f"    branch tau={tau:+d} s={s:+d}")
+            cache[(s, tau)] = ll.branch_curves(B_GRID, s, tau, V, zeeman,
+                                               mus, N_MAX)
+    for tau, mu in order:
+        for s in (+1, -1):
+            style = "-" if s > 0 else ":"
+            for arr in cache[(s, tau)][mu]:
+                ax.plot(B_GRID, arr * 10, color=COLOR[tau][mu],
+                        lw=ps.LW_FAN, linestyle=style, **ps.dashed(style))
 
 
-def Mz_eV(B, zeeman):
-    return gprime * muB * B / 2.0 if zeeman else 0.0
+def setup(ax, ylim, yticks):
+    ax.set_xlim(0, 40)
+    ax.set_ylim(*ylim)
+    ax.set_xticks([0, 10, 20, 30, 40])
+    ax.set_yticks(yticks)
+    ax.set_yticklabels([f"{t:.1f}" for t in yticks])
+    ax.set_xlabel(r"$B$ (T)", fontsize=13, labelpad=2)
+    ax.set_ylabel(r"E ($10^{-1}$ eV)", fontsize=12)
+    ps.frame(ax)
 
 
-def Mv_eV(B, zeeman):
-    return g_v * muB * B / 2.0 if zeeman else 0.0
+def fermi_curve(ax, zeeman):
+    """Eq. (17): the magenta E_F(B) curve."""
+    print("    Fermi energy, Eq. (17)")
+    B_ef = B_GRID[B_GRID >= 1.0]
+    EF = np.array([ll.eq17_fermi_energy(B, V, zeeman) for B in B_ef])
+    ax.plot(B_ef, EF * 10, color="magenta", lw=ps.LW_EF)
 
 
-def d_params(B, s, tau, zeeman):
-    """Dimensionless d1..d4 and t, all in units of hbar*omega_c."""
-    hw = hw_eV(B)
-    kappa_tau = (Delta + tau * V) / hw
-    alpha_tau = (Delta - tau * V) / hw
-    lam_hw = lam / hw
-    t = gamma / hw
-    Z = tau * (s * Mz_eV(B, zeeman) - tau * Mv_eV(B, zeeman)) / hw
-    d1 = kappa_tau + s * lam_hw + Z
-    d2 = alpha_tau - Z
-    d3 = alpha_tau - s * lam_hw - Z
-    d4 = kappa_tau + Z
-    return d1, d2, d3, d4, t, hw
+def flipped_label(mu, spin):
+    """The left panel's labels pair OPPOSITE spins across the valleys:
+    E^{s,+}_{n,mu} = E^{-s,-}_{n,mu}.  See the note in the file header."""
+    return (ps.E_label(mu, spin, +1, n=True) + " = "
+            + ps.E_label(mu, -spin, -1, n=True))
 
 
-def quartic_roots(n, d1, d2, d3, d4, t):
-    p1 = np.poly1d([1.0, d1 - d2, -d1 * d2 - n])
-    p2 = np.poly1d([1.0, d3 - d4, -d3 * d4 - (n + 1)])
-    p3 = np.poly1d([1.0, -(d2 + d4), d2 * d4])
-    Q = p1 * p2 - (t ** 2) * p3
-    return np.sort(np.roots(Q.coeffs).real)
+# =============================================================================
+if __name__ == "__main__":
+    print("Fig. 7 - conduction LLs vs B at V = 15 meV")
 
+    fig = plt.figure(figsize=(9.6, 4.05))
+    gs = fig.add_gridspec(1, 2, wspace=0.26,
+                          left=0.075, right=0.995, top=0.985, bottom=0.150)
+    ax_l = fig.add_subplot(gs[0, 0])
+    ax_r = fig.add_subplot(gs[0, 1])
 
-def xi_terms(s, tau, B, zeeman):
-    """Original Eq. (1) xi's (eV)."""
-    kappa = Delta + V
-    alpha = Delta - V
-    Mz, Mv = Mz_eV(B, zeeman), Mv_eV(B, zeeman)
-    xi1 = kappa + tau * s * lam + s * Mz - tau * Mv
-    xi2 = alpha - s * Mz + tau * Mv
-    xi3 = alpha - tau * s * lam - s * Mz + tau * Mv
-    xi4 = kappa + s * Mz - tau * Mv
-    return xi1, xi2, xi3, xi4
+    # ---------------- LEFT: Mz = Mv = 0 -----------------------------------
+    # Only K is drawn; K' repeats it with the spins exchanged, which is
+    # what the published legend's equalities record.
+    print("  left panel (Mz = Mv = 0):")
+    draw_fan(ax_l, [(+1, "++"), (+1, "+-")], zeeman=False)
+    setup(ax_l, LEFT_YLIM, [8.1, 8.2, 8.3, 8.4, 8.5, 8.6])
+    fermi_curve(ax_l, zeeman=False)
 
+    L = LEFT_YLIM
+    ps.legend_entry(ax_l, 0.030, yf(8.400, L), "-", "magenta",
+                    r"$\mathrm{E_F}$", fontsize=9.5, backing=True,
+                    width=0.180, height=0.034, sample=0.070)
+    ax_l.text(0.030, yf(8.118, L), "V = 15 meV", transform=ax_l.transAxes,
+              fontsize=9.5, va="center", zorder=6,
+              bbox=dict(facecolor="white", edgecolor="none", pad=0.6))
+    ps.legend_entry(ax_l, 0.600, yf(8.280, L), "-", "red",
+                    flipped_label("+-", +1), backing=True,
+                    width=0.385, height=0.034)
+    ps.legend_entry(ax_l, 0.600, yf(8.210, L), ":", "red",
+                    flipped_label("+-", -1), backing=True,
+                    width=0.385, height=0.034)
+    ps.legend_entry(ax_l, 0.300, yf(8.118, L), ":", "black",
+                    flipped_label("++", -1), backing=True,
+                    width=0.385, height=0.034)
+    ps.legend_entry(ax_l, 0.725, yf(8.118, L), "-", "black",
+                    flipped_label("++", +1), backing=True,
+                    width=0.385, height=0.034)
 
-def n_minus1_level(s, tau, B, zeeman):
-    xi1, xi2, xi3, xi4 = xi_terms(s, tau, B, zeeman)
-    return xi4 if tau == 1 else xi2
+    # ---------------- RIGHT: Mz, Mv != 0 ----------------------------------
+    # Same content and draw order as Fig. 5's conduction panel: black over
+    # green for mu = ++, red over blue for mu = +-.
+    print("  right panel (Mz, Mv != 0):")
+    draw_fan(ax_r, [(-1, "++"), (+1, "++"), (-1, "+-"), (+1, "+-")],
+             zeeman=True)
+    setup(ax_r, RIGHT_YLIM, [8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6])
+    fermi_curve(ax_r, zeeman=True)
 
+    R = RIGHT_YLIM
+    ax_r.text(0.030, yf(8.430, R), "V = 15 meV", transform=ax_r.transAxes,
+              fontsize=9.5, va="center", zorder=6,
+              bbox=dict(facecolor="white", edgecolor="none", pad=0.6))
+    ps.legend_entry(ax_r, 0.050, yf(8.375, R), "-", "magenta",
+                    r"$\mathrm{E_F}$", fontsize=9.5, backing=True,
+                    width=0.180, height=0.034, sample=0.070)
 
-def n0_levels_eV(s, tau, B, zeeman):
-    xi1, xi2, xi3, xi4 = xi_terms(s, tau, B, zeeman)
-    hw = hw_eV(B)
-    if tau == 1:
-        H = np.array([[-xi1, gamma, 0.0], [gamma, -xi3, hw], [0.0, hw, xi4]])
-    else:
-        H = np.array([[-xi1, hw, gamma], [hw, xi2, 0.0], [gamma, 0.0, -xi3]])
-    return np.sort(np.linalg.eigvalsh(H))
+    COLUMNS = [(0.025, "red", "+-", +1), (0.275, "black", "++", +1),
+               (0.525, "green", "++", -1), (0.775, "blue", "+-", -1)]
+    for energy, spin, style in [(8.112, +1, "-"), (8.042, -1, ":")]:
+        for x, colour, mu, tau in COLUMNS:
+            ps.legend_entry(ax_r, x, yf(energy, R), style, colour,
+                            ps.E_label(mu, spin, tau, n=True), backing=True,
+                            width=0.195, height=0.034)
 
-
-COND_COLOR = {1: {'+-': 'red', '++': 'black'}, -1: {'+-': 'blue', '++': 'green'}}
-
-
-def collect_branch(s, tau, zeeman):
-    out = {mu: np.full(len(B_grid), np.nan) for mu in ['--', '-+', '+-', '++']}
-    for ib, B in enumerate(B_grid):
-        n_m1 = n_minus1_level(s, tau, B, zeeman)
-        out['++' if tau == 1 else '+-'][ib] = n_m1
-
-        lvl0 = n0_levels_eV(s, tau, B, zeeman)
-        labels0 = ['--', '-+', '++'] if tau == -1 else ['--', '-+', '+-']
-        for lab, val in zip(labels0, lvl0):
-            out[lab][ib] = val
-
-    per_n = {mu: [] for mu in ['--', '-+', '+-', '++']}
-    for n in range(1, N_MAX + 1):
-        curve = {mu: np.full(len(B_grid), np.nan) for mu in ['--', '-+', '+-', '++']}
-        for ib, B in enumerate(B_grid):
-            d1, d2, d3, d4, t, hw = d_params(B, s, tau, zeeman)
-            roots = quartic_roots(n, d1, d2, d3, d4, t)
-            for lab, val in zip(['--', '-+', '+-', '++'], roots):
-                curve[lab][ib] = val * hw
-        for mu in per_n:
-            per_n[mu].append(curve[mu])
-
-    return out, per_n
-
-
-def all_conduction_energies(B, zeeman):
-    energies = []
-    for tau in (1, -1):
-        for s in (1, -1):
-            energies.append(n_minus1_level(s, tau, B, zeeman))
-            lvl0 = n0_levels_eV(s, tau, B, zeeman)
-            labels0 = ['--', '-+', '++'] if tau == -1 else ['--', '-+', '+-']
-            cond_label = '++' if tau == -1 else '+-'
-            energies.append(lvl0[labels0.index(cond_label)])
-            d1, d2, d3, d4, t, hw = d_params(B, s, tau, zeeman)
-            for n in range(1, N_EF + 1):
-                roots = quartic_roots(n, d1, d2, d3, d4, t) * hw
-                energies.extend(roots[2:])
-    return np.array(energies)
-
-
-def fermi_energy_curve(B_values, zeeman, ne_target_m2=1.9e17, T=1.0):
-    from scipy.optimize import brentq
-    kBT = 8.617333262e-5 * T
-    EF = np.empty(len(B_values))
-    for i, B in enumerate(B_values):
-        if i % 40 == 0:
-            print(f"  fermi_energy_curve: point {i}/{len(B_values)} (B={B:.2f} T)...")
-        E = all_conduction_energies(B, zeeman)
-        l_B2 = hbar_J / (e_ch * B)
-        D0 = 2 * np.pi * l_B2
-
-        def ne_of_EF(ef):
-            x = np.clip((E - ef) / kBT, -500, 500)
-            return np.sum(1.0 / (1.0 + np.exp(x))) / D0
-
-        lo, hi = E.min() - 0.05, E.max() + 0.05
-        EF[i] = brentq(lambda ef: ne_of_EF(ef) - ne_target_m2, lo, hi, xtol=1e-10)
-    return EF
-
-
-def legend_entry(ax, x, y, ls, color, text, fontsize=8, width_scale=0.20):
-    xr = ax.get_xlim()[1] - ax.get_xlim()[0]
-    yr = ax.get_ylim()[1] - ax.get_ylim()[0]
-    ax.add_patch(plt.Rectangle((x - 0.01 * xr, y - 0.018 * yr), width_scale * xr, 0.036 * yr,
-                                facecolor='white', edgecolor='none', zorder=5))
-    ax.plot([x, x + 0.05 * xr], [y, y], color=color, linestyle=ls, lw=1.5,
-            zorder=6, clip_on=False)
-    ax.text(x + 0.065 * xr, y, text, color='black', fontsize=fontsize,
-            va='center', ha='left', zorder=6)
-
-
-def plot_branch(ax, s, tau, zeeman, mu_keys, color_map):
-    print(f"  collecting LL branch tau={tau:+d} s={s:+d} zeeman={zeeman}...")
-    n_m1_and_0, per_n = collect_branch(s, tau, zeeman)
-    ls = '-' if s == 1 else ':'
-    for mu in mu_keys:
-        color = color_map[tau][mu]
-        ax.plot(B_grid, n_m1_and_0[mu] * 10, color=color, lw=0.8, linestyle=ls)
-        for curve in per_n[mu]:
-            ax.plot(B_grid, curve * 10, color=color, lw=0.6, linestyle=ls)
-
-
-print("Fig 7: starting computation...")
-fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
-
-# ---------------- Left panel: Mz = Mv = 0 (K valley only, pixel-verified) --
-ax = axes[0]
-for s in (+1, -1):
-    plot_branch(ax, s, 1, False, ['+-', '++'], COND_COLOR)
-ax.set_xlim(0, 40)
-ax.set_ylim(8.1, 8.6)
-ax.set_xlabel(r"$B$ (T)")
-ax.set_ylabel(r"$E$ ($10^{-1}$ eV)")
-ax.set_title("Conduction band")
-
-print("Fermi energy curve (left panel):")
-B_ef = B_grid[B_grid >= 1.0]
-EF0 = fermi_energy_curve(B_ef, False)
-ax.plot(B_ef, EF0 * 10, color='magenta', lw=1.3)
-ax.text(1, 8.40, r"$E_F$", fontsize=9, va='center', ha='left', color='black')
-ax.plot([1, 4], [8.405, 8.405], color='magenta', lw=1.3, clip_on=False)
-ax.text(1, 8.13, "V = 15 meV", fontsize=8, va='center', ha='left',
-        bbox=dict(facecolor='white', edgecolor='none', pad=1.5))
-
-legend_entry(ax, 27, 8.235, '-', 'red', r"$E^{\uparrow,+}_{n,+-}=E^{\downarrow,-}_{n,+-}$")
-legend_entry(ax, 27, 8.195, ':', 'red', r"$E^{\downarrow,+}_{n,+-}=E^{\uparrow,-}_{n,+-}$")
-legend_entry(ax, 14, 8.13, ':', 'black', r"$E^{\downarrow,+}_{n,++}=E^{\uparrow,-}_{n,++}$")
-legend_entry(ax, 30, 8.13, '-', 'black', r"$E^{\uparrow,+}_{n,++}=E^{\downarrow,-}_{n,++}$")
-
-# ---------------- Right panel: Mz,Mv != 0 (same physics as Fig. 5's -------
-# conduction panel, Codes/4.py, verbatim) -----------------------------------
-ax = axes[1]
-for tau in (1, -1):
-    for s in (+1, -1):
-        plot_branch(ax, s, tau, True, ['+-', '++'], COND_COLOR)
-ax.set_xlim(0, 40)
-ax.set_ylim(8.0, 8.6)
-ax.set_xlabel(r"$B$ (T)")
-ax.set_ylabel(r"$E$ ($10^{-1}$ eV)")
-ax.set_title("Conduction band")
-
-print("Fermi energy curve (right panel):")
-EF1 = fermi_energy_curve(B_ef, True)
-ax.plot(B_ef, EF1 * 10, color='magenta', lw=1.3)
-ax.add_patch(plt.Rectangle((0.5, 8.428), 4.0, 0.028, facecolor='white',
-                            edgecolor='none', zorder=5))
-ax.text(1, 8.44, r"$E_F$", fontsize=9, va='center', ha='left', color='black', zorder=6)
-ax.plot([1, 4], [8.445, 8.445], color='magenta', lw=1.3, clip_on=False, zorder=6)
-ax.text(1, 8.42, "V = 15 meV", fontsize=8, va='center', ha='left',
-        bbox=dict(facecolor='white', edgecolor='none', pad=1.5), zorder=6)
-
-legend_entry(ax, 1, 8.13, '-', 'red', r"$E^{\uparrow,+}_{n,+-}$", width_scale=0.11)
-legend_entry(ax, 12, 8.13, '-', 'black', r"$E^{\uparrow,+}_{n,++}$", width_scale=0.11)
-legend_entry(ax, 23, 8.13, '-', 'green', r"$E^{\uparrow,-}_{n,++}$", width_scale=0.11)
-legend_entry(ax, 32, 8.13, '-', 'blue', r"$E^{\uparrow,-}_{n,+-}$", width_scale=0.11)
-legend_entry(ax, 1, 8.09, ':', 'red', r"$E^{\downarrow,+}_{n,+-}$", width_scale=0.11)
-legend_entry(ax, 12, 8.09, ':', 'black', r"$E^{\downarrow,+}_{n,++}$", width_scale=0.11)
-legend_entry(ax, 23, 8.09, ':', 'green', r"$E^{\downarrow,-}_{n,++}$", width_scale=0.11)
-legend_entry(ax, 32, 8.09, ':', 'blue', r"$E^{\downarrow,-}_{n,+-}$", width_scale=0.11)
-
-fig.suptitle(
-    r"As in Fig. 6 but for $V=15$ meV. Left: $M_z=M_v=0$; "
-    r"right: $M_z\neq M_v\neq 0$. Magenta: $E_F$ vs $B$.",
-    fontsize=10
-)
-fig.tight_layout()
-
-plt.savefig("bilayer_MoS2_fig7_draft.png", dpi=200)
-print("Saved: bilayer_MoS2_fig7_draft.png")
-plt.show()
+    ps.save(fig, "bilayer_MoS2_fig7.png")
+    plt.show()
