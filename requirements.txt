@@ -1,0 +1,14 @@
+# Zubair et al., Phys. Rev. B 96, 045405 (2017) - figure reproduction
+#
+# Install everything with:      pip install -r requirements.txt
+#
+# Only three external packages are needed.  Everything else the scripts
+# import is either the Python standard library (sys) or ships inside
+# matplotlib itself (mpl_toolkits.mplot3d, the STIXGeneral font).
+#
+# Versions below are the ones the figures were produced with; the lower
+# bounds are what the code actually requires.
+
+numpy>=1.24          # produced with 2.2.1
+scipy>=1.10          # produced with 1.15.3  - uses optimize.brentq, special.erf
+matplotlib>=3.6      # produced with 3.10.9  - uses mpl_toolkits.mplot3d
